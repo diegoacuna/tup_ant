@@ -71,7 +71,7 @@ public:
 	
 	void move();
 	
-	void construct_perfect_match(const vector<Game>& potencial);
+	bool construct_perfect_match(const vector<Game>& potencial, vector<int>& match);
 	
 	bool check_restriction(Game game, int umpire);
 	
