@@ -44,13 +44,14 @@ private:
 	vector<ListDigraph::Node> slots_r2_; /**<Nodes representing each slot in the schedule for venue restriction */
 	Tup problem_instance_;              /**<Instance of TUP o solve */
 	MersenneRandom rnd_;				/**<Instance of a random generator */
+	int candidates_list_size_;          /**<Parameter K = size of the candidates list **/
 public:
 	/**
 	 * Class constructor.
 	 *
 	 * @param Tup reference to a problem instance to solve
 	 */
-	Ant(Tup& tup);
+	Ant(Tup& tup, int K);
 	
 	/**
 	 * Create and populates the graph of restrictions (filling the slots and the map).
@@ -67,12 +68,50 @@ public:
 	 */
 	void assign_match_to_umpire(Game game, int umpire);
 	
+	/**
+	 * Update the distance traveled by an umpire at the end of the actual slot.
+	 *
+	 * @param int which umpire gets his distance updated
+	 */
 	void update_distance(int umpire);
 	
 	void move();
 	
+	/**
+	 * Creates a perfect weighted match for the actual slot of the tournament.
+	 *
+	 * @param vector<Game> reference to a vector with all the games played in the actual slot
+	 * @param vector<int> vector<int> reference to a vector where the resultant match is going to be stored.
+	 * 
+	 * @return bool true if was possible to construct a perfect match, false otherwise
+	 */
 	bool construct_perfect_match(const vector<Game>& potencial, vector<int>& match);
 	
+	/**
+	 * Construct a match using the gamma criterion for umpires in the vector number_assignations until
+	 * the umpired indexed by the index until_umpire. The created match (if possible) gets assigned to
+	 * vector match.
+	 *
+	 * @param vector<Game> vector with the potencial assignations of games for the actual slot
+	 * @param vector< pair<int, int> > reference to a ordered vector of possible number of assignation by umpire
+	 * @param vector< pair<int, int> > reference to a ordered vector of total traveled distance by umpire
+	 * @param int index indicating until which umpire we need to assign a priori matchs
+	 * @param vector<int> reference to a vector where the resultant match is going to be stored.
+	 * 
+	 * @return bool true if was possible to construct a match, false otherwise
+	 */
+	bool construct_match_from_gamma_criterion(vector<Game> potencial, const vector< pair<int, int> >& 
+		number_assignations, int until_umpire, vector<int>& match);
+	
+	/**
+	 * Check if the umpire indexed by 'umpire' can arbitrate the game 'game' in the actual slot according
+	 * to his actual restrictions.
+	 *
+	 * @param Game Game to check
+	 * @param int umpire to check
+	 * 
+	 * @return bool true if the umpire is able to arbitrate, false otherwise
+	 */
 	bool check_restriction(Game game, int umpire);
 	
 	ListDigraph::Node get_umpire_node_from_slot(int slot, int umpire, const vector<ListDigraph::Node>& slot_vector);

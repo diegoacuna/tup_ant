@@ -9,9 +9,12 @@
 #include <glog/logging.h>
 #include <lemon/matching.h>
 #include <stdexcept>
+#include <utility>
+#include <algorithm>
 #include "ant.h"
 
-Ant::Ant(Tup& tup) : actual_slot_(0), restrictions_graph_map_(restrictions_graph_), problem_instance_(tup)
+Ant::Ant(Tup& tup, int K) : actual_slot_(0), restrictions_graph_map_(restrictions_graph_), problem_instance_(tup),
+ candidates_list_size_(K)
 {
 	//initialize some attributes
 	prepare_restrictions_graph();
@@ -129,7 +132,42 @@ void Ant::move()
 	vector<int> perfect_match;
 	if(construct_perfect_match(potencial, perfect_match))
 		candidates.push_back(std::move(perfect_match));
-	
+		
+	//second, count possible assignations for every umpire, we need to orders of umpires, one containing
+	//the umpires ordered by the possible number of assignations and other ordered by the distance recorred
+	//by each umpire until the present slot
+	vector< pair<int, int> > number_assignations(problem_instance_.number_of_umpires(), make_pair(0, 0));
+	vector< pair<int, int> > traveled_distance(problem_instance_.number_of_umpires(), make_pair(0,0));
+	//in this vector we're going to store which games we can assign to every umpire
+	vector< vector<int> > possible_assignations(problem_instance_.number_of_umpires());
+	for(int umpire = 0; umpire < problem_instance_.number_of_umpires(); umpire++){
+		number_assignations[umpire].first = traveled_distance[umpire].first = umpire;
+		int previous_team = schedule_[umpire][actual_slot_-1].local_team() - 1;
+		for(std::vector<Game>::size_type game = 0; game != potencial.size(); game++) {
+			if(check_restriction(potencial[game], umpire)){
+				number_assignations[umpire].second++;
+				possible_assignations[umpire].push_back(game);
+			}
+		}
+		traveled_distance[umpire].second = distance_by_umpire_[umpire];
+	}
+	//now order the vector number_assignations
+	sort(number_assignations.begin(), number_assignations.end(), [](const pair<int, int>& a, 
+	const pair<int, int>& b) -> bool { 
+		return a.second < b.second; 
+	});
+	//and order the vector of traveled distance
+	sort(traveled_distance.begin(), traveled_distance.end(), [](const pair<int, int>& a, 
+	const pair<int, int>& b) -> bool { 
+		return a.second < b.second; 
+	});
+	//now, traverse the number_assignations vector and watch which umpire has less possible assignations than permited
+	for (std::vector<pair<int, int>>::size_type i = 0; i != number_assignations.size(); i++){
+		int percentage = (number_assignations[i].second * 100) / problem_instance_.number_of_umpires();
+		if(percentage > problem_instance_.gamma())
+			break;
+	}
+
 	//finally move to the next round
 	actual_slot_++;
 }
@@ -180,9 +218,46 @@ bool Ant::construct_perfect_match(const vector<Game>& potencial, vector<int>& ma
 	return true;
 }
 
+bool Ant::construct_match_from_gamma_criterion(vector<Game> potencial, const vector< pair<int, int> >& 
+		number_assignations, int until_umpire, vector<int>& match){
+	//initialize the random generator
+	rnd_.create_uniform_real_dis(0.0, 1.0);
+	for(int i=0; i < until_umpire; i++){
+		int umpire = number_assignations[i].first;
+		int previous_team = schedule_[umpire][actual_slot_-1].local_team() - 1;
+		//check which criterior of Pi we are going to apply
+		double Pi = rnd_.uniform_real_number();
+		if( Pi < 0.8){ //apply feromone criterion
+			//TODO: implement code for selecting a move by the feromone
+		} else { //apply minime traveled distance criterion
+			pair<int, double> minimum {100, total_distance_}; //dummy initializators
+			for(std::vector<Game>::size_type game = 0; game != potencial.size(); game++){
+				if(check_restriction(potencial[game], umpire)){
+					if(minimum.second > problem_instance_.distance_matrix()
+						[previous_team][potencial[game].local_team()- 1]){
+						minimum.first = game;
+						minimum.second = problem_instance_.distance_matrix()
+							[previous_team][potencial[game].local_team() - 1];
+					}
+				}
+			}
+			//so in minimum pair we have the assignation
+			match[umpire] = minimum.first;
+			//now we need to mark as deleted the potencial assignation recently assigned because is o available anymore.
+			Game dummy {-1,-1};
+			potencial[minimum.first] = dummy;
+		}		
+	}
+	//at this point we have the gamma criterion satisfied, we know that we have until_umpire elements in our
+	//match, if until_umpire is less than 50% of umpire, we need to full until 50% of match using the Pi criterion,
+	//the other 50% is fulfilled using a perfect match with the remaining umpires.
+}
+
 //check assignation of game to actual umpire slot
 bool Ant::check_restriction(Game game, int umpire)
 {
+	//for ghost assignations (check dummy game assignment in construct_match_from_gamma_criterion function)
+	if(game.local_team() == -1) return false;
 	//first check home restriction
 	ListDigraph::Node umpire_node = get_umpire_node_from_slot(actual_slot_, umpire, slots_r1_);
 	for (ListDigraph::OutArcIt a(restrictions_graph_, umpire_node); a != INVALID; ++a){

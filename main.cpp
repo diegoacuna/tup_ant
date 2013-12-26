@@ -50,6 +50,9 @@ int main(int argc, char **argv)
 			true,"","string",cmd);
 		TCLAP::ValueArg<int> home_arg("o","home","Home restriction (n-d1)",false,0,"int",cmd);
 		TCLAP::ValueArg<int> venue_arg("e","venue","Any venue restriction (n/2 - d2)",false,0,"int",cmd);
+		//params for my proposal of algorithm
+		TCLAP::ValueArg<int> gamma_arg("g","gamma","Percentage of possible assignations for an umpire to consider him blocked",false,20,"int",cmd);
+		TCLAP::ValueArg<int> k_arg("k","candidates-list","Size of candidates list",false,5,"int",cmd);
 		//general params
 		TCLAP::SwitchArg debug_arg("d","debug","Show debug information", cmd, false);
 		
@@ -62,9 +65,9 @@ int main(int argc, char **argv)
 		double q = q_arg.getValue();
 		//End get command line parameters
 		
-		Tup problem {instance_arg.getValue(), home_arg.getValue(), venue_arg.getValue()};
+		Tup problem {instance_arg.getValue(), home_arg.getValue(), venue_arg.getValue(), gamma_arg.getValue()};
 		MersenneRandom rnd {(unsigned int) seed_arg.getValue()};
-		Ant test {problem};
+		Ant test {problem, k_arg.getValue()};
 		
 	} catch (TCLAP::ArgException &e) { 
 		LOG(FATAL) << "error: " << e.error() << " for arg " << e.argId();

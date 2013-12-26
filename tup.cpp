@@ -14,7 +14,7 @@
 #include <stdlib.h> 
 #include "tup.h"
 
-Tup::Tup(string filename, int home, int venue) : home_restriction_(home), venue_restriction_(venue)
+Tup::Tup(string filename, int home, int venue, int gamma) : home_restriction_(home), venue_restriction_(venue), gamma_(gamma)
 {
 	//read the config file and create parameters
 	ifstream infile(filename);
@@ -136,6 +136,14 @@ void Tup::set_venue_restriction(int venue_restriction){
 
 int Tup::venue_restriction() const{
 	return venue_restriction_;
+}
+
+void Tup::set_gamma(int gamma){
+	this->gamma_ = gamma;
+}
+
+int Tup::gamma() const{
+	return gamma_;
 }
 
 const multi_array<double, 2>& Tup::distance_matrix() const{

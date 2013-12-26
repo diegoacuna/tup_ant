@@ -35,6 +35,7 @@ private:
 	int number_of_teams_;                              /**<Number of teams in the tournament */
 	int home_restriction_;							   /**<Restriction for home venues (n - d1) */
 	int venue_restriction_;							   /**<Restriction for any venue restriction (n/2 - d2) */
+	int gamma_;            /**<Percentage of possible assignations for an umpire to consider him blocked */
 	multi_array<Game, 2> teams_schedule_;              /**<Schedule of the entire tournaments grouped by slot */
 	multi_array<double, 2> distance_matrix_;           /**<Distances from between all pairs of cities in the tournament */
 	multi_array<double, 2> inverted_distance_matrix_;  /**<Distance_matrix_[i,j]^(-1) for all i,j in the tournament */							   /**<File stream to read the instance file */
@@ -46,7 +47,7 @@ public:
 	 * @param home Restriction for home venues (n - d1)
 	 * @param venue Restriction for any venue restriction (n/2 - d2)
 	 */
-	Tup(string filename, int home, int venue);
+	Tup(string filename, int home, int venue, int gamma);
 	
 	void set_problem_name(const string& problem_name_);
 	
@@ -71,6 +72,10 @@ public:
 	void set_venue_restriction(int venue_restriction);
 	
 	int venue_restriction() const;
+	
+	void set_gamma(int gamma);
+	
+	int gamma() const;
 	
 	const multi_array<double, 2>& distance_matrix() const;
 	
