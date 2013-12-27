@@ -95,13 +95,14 @@ public:
 	 * @param vector<Game> vector with the potencial assignations of games for the actual slot
 	 * @param vector< pair<int, int> > reference to a ordered vector of possible number of assignation by umpire
 	 * @param vector< pair<int, int> > reference to a ordered vector of total traveled distance by umpire
+	 * @param vector< vector<int> > vector with possible games assignations to umpires
 	 * @param int index indicating until which umpire we need to assign a priori matchs
 	 * @param vector<int> reference to a vector where the resultant match is going to be stored.
 	 * 
 	 * @return bool true if was possible to construct a match, false otherwise
 	 */
 	bool construct_match_from_gamma_criterion(vector<Game> potencial, const vector< pair<int, int> >& 
-		number_assignations, int until_umpire, vector<int>& match);
+		number_assignations, const vector< vector<int> >& possible_assignations, int until_umpire, vector<int>& match);
 	
 	/**
 	 * Check if the umpire indexed by 'umpire' can arbitrate the game 'game' in the actual slot according

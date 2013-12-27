@@ -73,6 +73,7 @@ void Ant::assign_match_to_umpire(Game game, int umpire)
 	//now we need to take care of the restrictions graph, if we are in the last slot, then continue
 	if(actual_slot_ == problem_instance_.number_of_slots() -1)
 		return;
+	//case: the two last restrictions are not valid (i.e. are off)
 	if(problem_instance_.home_restriction() == 0 && problem_instance_.venue_restriction() == 0)
 		return;
 	if(problem_instance_.home_restriction() == 1 && problem_instance_.venue_restriction() == 1)
@@ -133,7 +134,7 @@ void Ant::move()
 	if(construct_perfect_match(potencial, perfect_match))
 		candidates.push_back(std::move(perfect_match));
 		
-	//second, count possible assignations for every umpire, we need to orders of umpires, one containing
+	//second, count possible assignations for every umpire, we need two ordered lists of umpires, one containing
 	//the umpires ordered by the possible number of assignations and other ordered by the distance recorred
 	//by each umpire until the present slot
 	vector< pair<int, int> > number_assignations(problem_instance_.number_of_umpires(), make_pair(0, 0));
@@ -167,6 +168,7 @@ void Ant::move()
 		if(percentage > problem_instance_.gamma())
 			break;
 	}
+	//in i we have the total number of umpires who breaks the gamma criterion, to that list of umpires we apply the criterion
 
 	//finally move to the next round
 	actual_slot_++;
@@ -219,9 +221,73 @@ bool Ant::construct_perfect_match(const vector<Game>& potencial, vector<int>& ma
 }
 
 bool Ant::construct_match_from_gamma_criterion(vector<Game> potencial, const vector< pair<int, int> >& 
-		number_assignations, int until_umpire, vector<int>& match){
+		number_assignations, const vector< vector<int> >& possible_assignations, int until_umpire, vector<int>& match){
 	//initialize the random generator
 	rnd_.create_uniform_real_dis(0.0, 1.0);
+	
+	//to every umpire until 'until_umpire' we're going to assign a match a priori
+	for(int i=0; i < until_umpire; i++){
+		int umpire = number_assignations[i].first;
+		//OBS: in potencial we've all the games that can be played in actual slot, in possible_assignations vector
+		//we've all possible games that each umpire can play...
+		//so, for the umpire number i we assign a priori match from its possible_assignations
+		int total_assignations_to_actual_umpire = possible_assignations[umpire].size();
+		//special case: the umpire only have one possible assignation
+		if (total_assignations_to_actual_umpire == 1){
+			if(potencial[possible_assignations[umpire][0]].local_team() != -1){
+				match[umpire] = possible_assignations[umpire][0];
+				Game dummy {-1,-1};
+				potencial[possible_assignations[umpire][0]] = dummy;
+			} else {
+				DLOG(WARNING) << "Impossible to create a candidate for slot "<< actual_slot_ << " with gamma criterion"
+				<< " to 'until_umpire' " << i << ". The problem was: empty possible_assignations vector, no more potencial games to play."; 
+				return false;
+			}
+		} else {
+			//we have more than one, first we need to check if we have a possible assignation for the umpire
+			bool pass = false;
+			for(int j=0; j < total_assignations_to_actual_umpire; j++)
+				if(potencial[possible_assignations[umpire][j]].local_team() != -1)
+					pass = true;
+			if(!pass){
+				DLOG(WARNING) << "Impossible to create a candidate for slot "<< actual_slot_ << " with gamma criterion"
+				<< " to 'until_umpire' " << i << ". The problem was: empty possible_assignations vector, no more potencial games to play."; 
+				return false;
+			}
+			//now we can continue...
+			rnd_.create_uniform_int_dis(0, total_assignations_to_actual_umpire-1);
+			int a_priori_match = rnd_.uniform_int_number();
+			while(potencial[possible_assignations[umpire][a_priori_match]].local_team() == -1)
+				a_priori_match = rnd_.uniform_int_number();
+			//we found a possible a priori assignation
+			match[umpire] = possible_assignations[umpire][a_priori_match];
+			Game dummy {-1,-1};
+			potencial[possible_assignations[umpire][a_priori_match]] = dummy;
+		}
+	}
+	//at this point we have a candidate with 'until_umpire' assignations, we complete the rest with 
+	//pi criterion and perfect weighted match, we need to count how many elements in the candidate we have
+	int total = 0;
+	for(int i=0; i < problem_instance_.number_of_umpires(); i++)
+		if(match[i]!=-1)
+			total++;
+	int half = problem_instance_.number_of_umpires() / 2;
+	//the other half not always is going to be the exact half (e.g. with 3 umpires)
+	int other_half = problem_instance_.number_of_umpires() - half; 
+	if(total < half){
+		//we need to apply Pi criterion until half, with vector number_assignations we can know which umpires are missing
+		int index_missings = until_umpire + (half-total);
+		for(int i=until_umpire; i < index_missings; i++){
+			double Pi = rnd_.uniform_real_number();
+			if( Pi < 0.8 ){ //apply pheromone criterion
+				
+			} else {
+				//apply minimum traveled distance criterion
+			}
+		}
+	}
+	
+	//this code is probably wrong
 	for(int i=0; i < until_umpire; i++){
 		int umpire = number_assignations[i].first;
 		int previous_team = schedule_[umpire][actual_slot_-1].local_team() - 1;
@@ -243,7 +309,7 @@ bool Ant::construct_match_from_gamma_criterion(vector<Game> potencial, const vec
 			}
 			//so in minimum pair we have the assignation
 			match[umpire] = minimum.first;
-			//now we need to mark as deleted the potencial assignation recently assigned because is o available anymore.
+			//now we need to mark as deleted the potencial assignation recently assigned because is no available anymore.
 			Game dummy {-1,-1};
 			potencial[minimum.first] = dummy;
 		}		
