@@ -163,13 +163,143 @@ void Ant::move()
 		return a.second < b.second; 
 	});
 	//now, traverse the number_assignations vector and watch which umpire has less possible assignations than permited
+	int umpires_gamma_criterion = -1;
 	for (std::vector<pair<int, int>>::size_type i = 0; i != number_assignations.size(); i++){
 		int percentage = (number_assignations[i].second * 100) / problem_instance_.number_of_umpires();
-		if(percentage > problem_instance_.gamma())
+		if(percentage > problem_instance_.gamma()){
+			umpires_gamma_criterion = i;
 			break;
+		}
 	}
-	//in i we have the total number of umpires who breaks the gamma criterion, to that list of umpires we apply the criterion
-
+	//in umpires_gamma_criterion we have the total number of umpires who breaks the gamma criterion, to that list of umpires we apply the criterion
+	if(umpires_gamma_criterion != -1){
+		//we can create umpires_gamma_criterion candidates...
+		for(int i=0; i < umpires_gamma_criterion; i++){
+			vector<int> candidate(problem_instance_.number_of_umpires(), -1);
+			if(construct_match_from_gamma_criterion(potencial, number_assignations, possible_assignations, i, candidate)){
+				//we have a match, need to copy to the candidate list
+				candidates.push_back(candidate);
+			}
+		}
+	} 
+	//we need to complete the candidate list
+	//TODO: mean while K is going to be equal to the number of teams... probably its better to let it be a parameter
+	if(candidates.size() < problem_instance_.number_of_teams()){
+		//we are going to complete a list of size K = number of teams using the Pi criterion + perfect weigthed match
+		rnd_.create_uniform_real_dis(0.0, 1.0);
+		for(auto i=candidates.size();i<problem_instance_.number_of_teams()+1;i++){
+			//CONSTRUCT A COMPLETE CANDIDATE, 50% WITH PI CRITERION AND 50% WITH PERFECT WEIGHTED MATCH
+			vector<Game> potencial_pi = potencial;
+			vector< pair<int, int> > traveled_distance_pi = traveled_distance;
+			vector<int> match(problem_instance_.number_of_umpires(), -1);
+			for(int j=0;j<problem_instance_.number_of_umpires()/2;j++){
+				double Pi = rnd_.uniform_real_number();
+				if( Pi < 0.8 ){ //TODO: apply pheromone criterion
+					//first, choose a good distance umpire (from the first half of traveled_distance vector
+					int choosed_umpire = -1;
+					if(traveled_distance_pi.size() == 1) choosed_umpire = traveled_distance[0].first;
+					else {
+						int half = traveled_distance.size() / 2; //doesn't matter where the half start...
+						rnd_.create_uniform_int_dis(0, half-1);
+						choosed_umpire = traveled_distance[rnd_.uniform_int_number()].first;
+						//TODO: implement code of pheromone criterion
+					}
+				} else {
+					//apply minimum traveled distance criterion
+					//first, choose a bad distance umpire (from the second half of traveled_distance vector
+					int choosed_umpire = -1;
+					int index_umpire = -1;
+					if(traveled_distance_pi.size() == 1){
+						choosed_umpire = traveled_distance_pi[0].first;
+						index_umpire = 0;
+					} else {
+						int half = traveled_distance_pi.size() / 2; //doesn't matter where the half start...
+						rnd_.create_uniform_int_dis(half-1, traveled_distance_pi.size()-1);
+						index_umpire = rnd_.uniform_int_number();
+						while(traveled_distance_pi[index_umpire].first == -1){
+							index_umpire = rnd_.uniform_int_number();
+							DLOG(INFO) << "Looking for an index_umpire in traveled_distance vector...";
+						}
+						choosed_umpire = traveled_distance_pi[index_umpire].first;
+					}
+					//We have an umpire...
+					//now select a match who minimices traveled distance
+					int minimum_assignation = -1;
+					double min_distance = distance_by_umpire_[choosed_umpire]*1000; //dummy
+					int previous_team = schedule_[choosed_umpire][actual_slot_-1].local_team() - 1;
+					for(int assignation : possible_assignations[choosed_umpire]){
+						if(potencial_pi[assignation].local_team() != -1){
+							if(problem_instance_.distance_matrix()[previous_team][potencial_pi[assignation].local_team() - 1] < min_distance)
+								minimum_assignation = assignation;
+						}
+					}//END FIND THE MINIMAL DISTANCE MATCH
+					if(minimum_assignation == -1){
+						DLOG(WARNING) << "Impossible to create a candidate for slot "<< actual_slot_ << " with gamma criterion"
+						<< " in phase Pi criterion (phase to create until K candidates) with umpire " << choosed_umpire << ". The problem was: empty possible_assignations vector, no more potencial games to play."; 
+						return false;
+					}
+					//make the assignation
+					match[choosed_umpire] = possible_assignations[choosed_umpire][minimum_assignation];
+					Game dummy {-1,-1};
+					potencial_pi[possible_assignations[choosed_umpire][minimum_assignation]] = dummy;
+					traveled_distance_pi[index_umpire].first = -1;
+				} //END PI CRITERION WITH PI > 0.8
+			}
+			//now we need to create the rest of the candidate with a perfect weighted match
+			//to know which umpires to bound we look the match vector (umpires with match -1 are not assigned)
+			//START PERFECT WEIGHTED MATCH FOR THE 50% REST
+			ListGraph bpMatch;
+			ListGraph::EdgeMap<double> weight(bpMatch); //weights of the graph
+			ListGraph::NodeMap<int> labels(bpMatch);
+			vector<ListGraph::Node> bpA; //first partition (umpires)
+			vector<ListGraph::Node> bpB; //second partition (games)
+			
+			for(vector<int>::size_type i=0;i<match.size();i++){
+				if(match[i]==-1){
+					bpA.push_back(bpMatch.addNode());
+					labels[bpA.back()] = i;
+				}
+			}
+			for(std::vector<Game>::size_type i=0; i != potencial_pi.size(); i++){
+				bpB.push_back(bpMatch.addNode());
+				labels[bpB.back()] = i;
+			}	
+			//now, for each umpire check if we can join the umpire node with a node in bpB
+			for(int umpire=0; umpire < problem_instance_.number_of_umpires(); umpire++){
+				if(match[umpire]!=-1) continue;
+				//join possible assignations (games) with umpires
+				int previous_team = schedule_[umpire][actual_slot_-1].local_team() - 1;
+				for(int assignation : possible_assignations[umpire]){
+					if(potencial_pi[assignation].local_team() != -1){
+						ListGraph::Edge e = bpMatch.addEdge(bpA[umpire], bpB[assignation]);
+						weight[e] = 1 / problem_instance_.distance_matrix()[previous_team]
+							[potencial_pi[assignation].local_team()-1];
+					}
+				}
+			} //END JOINING NODES
+			
+			//we have the full graph ready to search for a perfect matching...
+			MaxWeightedPerfectMatching<ListGraph, ListGraph::EdgeMap<double> > matching(bpMatch, weight);
+			if (!matching.run()){
+				DLOG(WARNING) << "No perfect matching found for 50% in construction of candidate list for until umpire " 
+				<< until_umpire << " in slot " << actual_slot_;
+				continue;
+			}
+			DLOG(INFO) << "Perfect Matching found with weight " << matching.matchingWeight();
+			//with the mate() function of MaxWeightedPerfectMatching we can obtain the matching
+			for(ListGraph::Node umpire : bpA){
+				ListGraph::Node game = matching.mate(umpire);
+				int which_umpire = labels[umpire];
+				//make the assignment
+				match[which_umpire] = labels[game];
+				Game dummy {-1,-1};
+				potencial_pi[labels[game]] = dummy;
+			}
+			candidates.push_back(match);
+			//END APPLY PERFECT WEIGHTED MATCH FOR THE 50% REST OF THE CANDIDATE LIST
+		}//END FOR PI CRITERION + PERFECT WEIGHTED MATCH TO CREATE UNTIL K CANDIDATES
+	}
+		
 	//finally move to the next round
 	actual_slot_++;
 }
@@ -222,6 +352,9 @@ bool Ant::construct_perfect_match(const vector<Game>& potencial, vector<int>& ma
 
 bool Ant::construct_match_from_gamma_criterion(vector<Game> potencial, const vector< pair<int, int> >& 
 		number_assignations, const vector< vector<int> >& possible_assignations, int until_umpire, vector<int>& match){
+	if(until_umpire == 0) //ERROR CHECKING
+		return false;
+	
 	//initialize the random generator
 	rnd_.create_uniform_real_dis(0.0, 1.0);
 	
@@ -291,7 +424,6 @@ bool Ant::construct_match_from_gamma_criterion(vector<Game> potencial, const vec
 		});
 		//now we apply the PI criterion
 		for(int i=until_umpire; i < index_missings; i++){
-			int umpire = number_assignations[i].first;
 			double Pi = rnd_.uniform_real_number();
 			if( Pi < 0.8 ){ //apply pheromone criterion
 				//first, choose a good distance umpire (from the first half of traveled_distance vector
@@ -300,6 +432,7 @@ bool Ant::construct_match_from_gamma_criterion(vector<Game> potencial, const vec
 				else {
 					int half = traveled_distance.size() / 2; //doesn't matter where the half start...
 					rnd_.create_uniform_int_dis(0, half-1);
+					//TODO: Check index_umpire (traveled_distance[rnd_.uniform_int_number()]) see code below
 					choosed_umpire = traveled_distance[rnd_.uniform_int_number()].first;
 					//TODO: implement code of pheromone criterion
 				}
@@ -307,11 +440,19 @@ bool Ant::construct_match_from_gamma_criterion(vector<Game> potencial, const vec
 				//apply minimum traveled distance criterion
 				//first, choose a bad distance umpire (from the second half of traveled_distance vector
 				int choosed_umpire = -1;
-				if(traveled_distance.size() == 1) choosed_umpire = traveled_distance[0].first;
-				else {
+				int index_umpire = -1;
+				if(traveled_distance.size() == 1){
+					choosed_umpire = traveled_distance[0].first;
+					index_umpire = 0;
+				} else {
 					int half = traveled_distance.size() / 2; //doesn't matter where the half start...
 					rnd_.create_uniform_int_dis(half-1, traveled_distance.size()-1);
-					choosed_umpire = traveled_distance[rnd_.uniform_int_number()].first;
+					index_umpire = rnd_.uniform_int_number();
+					while(traveled_distance[index_umpire].first == -1){
+						index_umpire = rnd_.uniform_int_number();
+						DLOG(INFO) << "Looking for an index_umpire in traveled_distance vector...";
+					}
+					choosed_umpire = traveled_distance[index_umpire].first;
 				}
 				//We have an umpire...
 				//now select a match who minimices traveled distance
@@ -330,9 +471,10 @@ bool Ant::construct_match_from_gamma_criterion(vector<Game> potencial, const vec
 					return false;
 				}
 				//make the assignation
-				match[umpire] = possible_assignations[choosed_umpire][minimum_assignation];
+				match[choosed_umpire] = possible_assignations[choosed_umpire][minimum_assignation];
 				Game dummy {-1,-1};
 				potencial[possible_assignations[choosed_umpire][minimum_assignation]] = dummy;
+				traveled_distance[index_umpire].first = -1;
 			} //END PI CRITERION WITH PI > 0.8
 		} //END COMPLETING 50% OF CANDIDATE LIST
 	} //END TOTAL < HALF CONDITION
