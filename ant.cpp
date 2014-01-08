@@ -143,7 +143,7 @@ void Ant::move()
 	vector< vector<int> > possible_assignations(problem_instance_.number_of_umpires());
 	for(int umpire = 0; umpire < problem_instance_.number_of_umpires(); umpire++){
 		number_assignations[umpire].first = traveled_distance[umpire].first = umpire;
-		int previous_team = schedule_[umpire][actual_slot_-1].local_team() - 1;
+		//int previous_team = schedule_[umpire][actual_slot_-1].local_team() - 1;
 		for(std::vector<Game>::size_type game = 0; game != potencial.size(); game++) {
 			if(check_restriction(potencial[game], umpire)){
 				number_assignations[umpire].second++;
@@ -194,16 +194,34 @@ void Ant::move()
 			vector<int> match(problem_instance_.number_of_umpires(), -1);
 			for(int j=0;j<problem_instance_.number_of_umpires()/2;j++){
 				double Pi = rnd_.uniform_real_number();
-				if( Pi < 0.8 ){ //TODO: apply pheromone criterion
+				if( Pi < 0.8 ){
 					//first, choose a good distance umpire (from the first half of traveled_distance vector
 					int choosed_umpire = -1;
+					int index_umpire = -1;
 					if(traveled_distance_pi.size() == 1) choosed_umpire = traveled_distance[0].first;
 					else {
-						int half = traveled_distance.size() / 2; //doesn't matter where the half start...
+						int half = traveled_distance_pi.size() / 2; //doesn't matter where the half start...
 						rnd_.create_uniform_int_dis(0, half-1);
-						choosed_umpire = traveled_distance[rnd_.uniform_int_number()].first;
-						//TODO: implement code of pheromone criterion
+						index_umpire = rnd_.uniform_int_number();
+						while(traveled_distance_pi[index_umpire].first == -1){
+							index_umpire = rnd_.uniform_int_number();
+							DLOG(INFO) << "Looking for an index_umpire in traveled_distance vector...";
+						}
+						choosed_umpire = traveled_distance_pi[index_umpire].first;
 					}
+					//we need to create a list of actual possible game candidates for choosed umpire
+					vector<int> actual_possible_games;
+					for(int assignation : possible_assignations[choosed_umpire]){
+						if(potencial_pi[assignation].local_team() != -1)
+							actual_possible_games.push_back(assignation);
+					}
+					//calculate pheromones and determine which game we play
+					int which_game = calculatePheromoneForGameList(choosed_umpire, 
+						actual_possible_games, potencial_pi);
+					match[choosed_umpire] = actual_possible_games[which_game];
+					Game dummy {-1,-1};
+					potencial_pi[actual_possible_games[which_game]] = dummy;
+					traveled_distance_pi[index_umpire].first = -1;
 				} else {
 					//apply minimum traveled distance criterion
 					//first, choose a bad distance umpire (from the second half of traveled_distance vector
@@ -236,7 +254,7 @@ void Ant::move()
 					if(minimum_assignation == -1){
 						DLOG(WARNING) << "Impossible to create a candidate for slot "<< actual_slot_ << " with gamma criterion"
 						<< " in phase Pi criterion (phase to create until K candidates) with umpire " << choosed_umpire << ". The problem was: empty possible_assignations vector, no more potencial games to play."; 
-						return false;
+						continue;
 					}
 					//make the assignation
 					match[choosed_umpire] = possible_assignations[choosed_umpire][minimum_assignation];
@@ -281,8 +299,8 @@ void Ant::move()
 			//we have the full graph ready to search for a perfect matching...
 			MaxWeightedPerfectMatching<ListGraph, ListGraph::EdgeMap<double> > matching(bpMatch, weight);
 			if (!matching.run()){
-				DLOG(WARNING) << "No perfect matching found for 50% in construction of candidate list for until umpire " 
-				<< until_umpire << " in slot " << actual_slot_;
+				DLOG(WARNING) << "No perfect matching found for 50% in construction of candidate list " 
+				<< " in slot " << actual_slot_;
 				continue;
 			}
 			DLOG(INFO) << "Perfect Matching found with weight " << matching.matchingWeight();
@@ -298,6 +316,19 @@ void Ant::move()
 			candidates.push_back(match);
 			//END APPLY PERFECT WEIGHTED MATCH FOR THE 50% REST OF THE CANDIDATE LIST
 		}//END FOR PI CRITERION + PERFECT WEIGHTED MATCH TO CREATE UNTIL K CANDIDATES
+	}
+	
+	//now we need to select which candidate choose and fill the schedule
+	int which_candidate = calculatePheromoneForCandidateList(candidates);
+	//so we select candidate 'wich_candidate', now fill the schedule and update
+	//the distance of each umpire. First get each game and assign, then update distance
+	int index_umpire = 0;
+	for(int game : candidates[which_candidate]){
+		Game instance_game = potencial[game];
+		assign_match_to_umpire(instance_game, index_umpire);
+		//update distance
+		update_distance(index_umpire);
+		index_umpire++;
 	}
 		
 	//finally move to the next round
@@ -406,7 +437,7 @@ bool Ant::construct_match_from_gamma_criterion(vector<Game> potencial, const vec
 			total++;
 	int half = problem_instance_.number_of_umpires() / 2;
 	//the other half not always is going to be the exact half (e.g. with 3 umpires)
-	int other_half = problem_instance_.number_of_umpires() - half; 
+	//int other_half = problem_instance_.number_of_umpires() - half; 
 	//we need to apply Pi criterion until half, with vector number_assignations we can know which umpires are missing
 	int index_missings = until_umpire + (half-total);
 	if(total < half){
@@ -428,14 +459,31 @@ bool Ant::construct_match_from_gamma_criterion(vector<Game> potencial, const vec
 			if( Pi < 0.8 ){ //apply pheromone criterion
 				//first, choose a good distance umpire (from the first half of traveled_distance vector
 				int choosed_umpire = -1;
+				int index_umpire = -1;
 				if(traveled_distance.size() == 1) choosed_umpire = traveled_distance[0].first;
 				else {
 					int half = traveled_distance.size() / 2; //doesn't matter where the half start...
 					rnd_.create_uniform_int_dis(0, half-1);
-					//TODO: Check index_umpire (traveled_distance[rnd_.uniform_int_number()]) see code below
-					choosed_umpire = traveled_distance[rnd_.uniform_int_number()].first;
-					//TODO: implement code of pheromone criterion
+					index_umpire = rnd_.uniform_int_number();
+					while(traveled_distance[index_umpire].first == -1){
+						index_umpire = rnd_.uniform_int_number();
+						DLOG(INFO) << "Looking for an index_umpire in traveled_distance vector...";
+					}
+					choosed_umpire = traveled_distance[index_umpire].first;
 				}
+				//we need to create a list of actual possible game candidates for choosed umpire
+				vector<int> actual_possible_games;
+				for(int assignation : possible_assignations[choosed_umpire]){
+					if(potencial[assignation].local_team() != -1)
+						actual_possible_games.push_back(assignation);
+				}
+				//calculate pheromones and determine which game we play
+				int which_game = calculatePheromoneForGameList(choosed_umpire, 
+					actual_possible_games, potencial);
+				match[choosed_umpire] = actual_possible_games[which_game];
+				Game dummy {-1,-1};
+				potencial[actual_possible_games[which_game]] = dummy;
+				traveled_distance[index_umpire].first = -1;
 			} else {
 				//apply minimum traveled distance criterion
 				//first, choose a bad distance umpire (from the second half of traveled_distance vector
@@ -467,7 +515,7 @@ bool Ant::construct_match_from_gamma_criterion(vector<Game> potencial, const vec
 				}//END FIND THE MINIMAL DISTANCE MATCH
 				if(minimum_assignation == -1){
 					DLOG(WARNING) << "Impossible to create a candidate for slot "<< actual_slot_ << " with gamma criterion"
-					<< " in phase Pi criterion with umpire " << umpire << ". The problem was: empty possible_assignations vector, no more potencial games to play."; 
+					<< " in phase Pi criterion with umpire " << choosed_umpire << ". The problem was: empty possible_assignations vector, no more potencial games to play."; 
 					return false;
 				}
 				//make the assignation
@@ -602,3 +650,149 @@ const multi_array<Game, 2>& Ant::schedule() const{
 Ant::~Ant()
 {
 }
+
+int Ant::calculatePheromoneForCandidateList(vector<vector<int> >& candidateList)
+{
+	//first we need to sum up all the pheromone for the candidate list and de visibility
+	double totalPheromone = 0.0;
+	//at the same time we are going to calculate pheromone for each candidate
+	vector<double> pheromone_candidate;
+	//also get total visibility and each candidate visibility
+	double total_visibility = 0.0;
+	vector<double> visibility_candidate;
+	for(auto candidate : candidateList){
+		double pheromone_actual_candidate = 0.0;
+		double visibility_actual_candidate = 0.0;
+		for(int umpire = 0; umpire < problem_instance_.number_of_umpires(); umpire++){
+			int game = candidate[umpire];
+			//we have the i,j,k index => umpire, slot, game
+			totalPheromone += colony_pheromone_[umpire][actual_slot_][game];
+			pheromone_actual_candidate += colony_pheromone_[umpire][actual_slot_][game];
+			visibility_actual_candidate += problem_instance_.
+				inverted_distance_matrix()
+				[schedule_[umpire][actual_slot_-1].local_team()-1]
+				[problem_instance_.teams_schedule()[game][actual_slot_].local_team()-1];
+			total_visibility += visibility_actual_candidate;
+		}
+		pheromone_candidate.push_back(pheromone_actual_candidate);
+		visibility_candidate.push_back(visibility_actual_candidate);
+	}
+	
+	//ok, now we can calculate the P_{IJ} for each candidate
+	vector<double> pheromone_relative;
+	for(vector< vector<int> >::size_type i=0; i < candidateList.size(); i++){
+		double calculation = (pow(pheromone_candidate[i], alpha_) *
+		                     pow(visibility_candidate[i], beta_) ) /
+							 (pow(totalPheromone, alpha_) * 
+							 pow(total_visibility, beta_));
+		pheromone_relative.push_back(calculation);
+	}
+	
+	//in pheromone_relative we have relative probabilities, now calculate cumulatives
+	vector<double> pheromone_cumulative;
+	int size_list = 0;
+	for(vector<int>::size_type i = 0; i < candidateList.size(); i++){
+		if(i==0)
+			pheromone_cumulative.push_back(pheromone_relative[0]);
+		else
+			pheromone_cumulative.push_back(pheromone_cumulative[i-1]
+				+ pheromone_relative[i]);
+		size_list++;
+	}
+	
+	//now, spin the roulette and choose the game, we return the number of the
+	//game which got elected
+	rnd_.create_uniform_real_dis(0.0, 1.0);
+	double p=rnd_.uniform_real_number();
+	if(p < pheromone_cumulative[0])
+		return 0;
+	else
+	{
+		for(int j=0; j < size_list-1;j++)
+		{
+			if(p >= pheromone_cumulative[j] && p < pheromone_cumulative[j+1])
+				return j+1;
+		}
+		if(p >= pheromone_cumulative[size_list-1])
+			return size_list-1;
+	}
+	
+	//never is going to ocurre but to avoid C++ warnings
+	return 0;
+}
+
+int Ant::calculatePheromoneForGameList(int umpire, const vector<int>& potencial_games, 
+	const vector<Game>& games)
+{
+	//the idea of this function is to calculate pheromone to know which game to
+	//select for the umpire, so at the end we're going to have a list with 
+	//pheromone value to each of the potencial games to play (for the umpire)...
+	//this is like the real approach to pheromone in Dorigo ant system
+
+	//first we need to sum up all the pheromone for the candidate list and the visibility
+	double total_pheromone = 0.0;
+	//also get total visibility and each candidate visibility
+	double total_visibility = 0.0;
+	for(auto candidate : potencial_games){
+		//the umpire is 'umpire', the slot is 'slot' the game is 'candidate', but
+		total_pheromone += colony_pheromone_[umpire][actual_slot_][candidate];
+		total_visibility += problem_instance_.
+				inverted_distance_matrix()
+				[schedule_[umpire][actual_slot_-1].local_team()-1]
+				[problem_instance_.teams_schedule()[candidate][actual_slot_].local_team()-1];
+	}
+	
+	//ok, now we can calculate the P_{IJ} for each candidate
+	vector<double> pheromone_relative;
+	for(auto candidate : potencial_games){
+		//the visibility for the actual umpire, slot, team (candidate)
+		double visibility = problem_instance_.
+				inverted_distance_matrix()
+				[schedule_[umpire][actual_slot_-1].local_team()-1]
+				[problem_instance_.teams_schedule()[candidate][actual_slot_].local_team()-1];
+				
+		double calculation = (pow(colony_pheromone_[umpire][actual_slot_][candidate], alpha_) *
+		                     pow(visibility, beta_) ) /
+							 (pow(total_pheromone, alpha_) * 
+							 pow(total_visibility, beta_));
+		pheromone_relative.push_back(calculation);
+	}
+	
+	//in pheromone_relative we have relative probabilities, now calculate cumulatives
+	vector<double> pheromone_cumulative;
+	int size_list = 0;
+	for(vector<int>::size_type i = 0; i < potencial_games.size(); i++){
+		if(i==0)
+			pheromone_cumulative.push_back(pheromone_relative[0]);
+		else
+			pheromone_cumulative.push_back(pheromone_cumulative[i-1]
+				+ pheromone_relative[i]);
+		size_list++;
+	}
+	
+	//now, spin the roulette and choose the game, we return the number of the
+	//game which got elected
+	rnd_.create_uniform_real_dis(0.0, 1.0);
+	double p=rnd_.uniform_real_number();
+	if(p < pheromone_cumulative[0])
+		return 0;
+	else
+	{
+		for(int j=0; j < size_list-1;j++)
+		{
+			if(p >= pheromone_cumulative[j] && p < pheromone_cumulative[j+1])
+				return j+1;
+		}
+		if(p >= pheromone_cumulative[size_list-1])
+			return size_list-1;
+	}
+	//never is going to ocurre but to avoid C++ warnings
+	return 0;
+}
+
+void Ant::setAlphaBeta(double alpha, double beta)
+{
+	this->alpha_ = alpha;
+	this->beta_ = beta;
+}
+

@@ -13,7 +13,7 @@ CurrentFileName        :=
 CurrentFilePath        :=
 CurrentFileFullPath    :=
 User                   :=Diego Acuña
-Date                   :=12/31/2013
+Date                   :=01/08/2014
 CodeLitePath           :="/home/dacuna/.codelite"
 LinkerName             :=g++
 SharedObjectLinkerName :=g++ -shared -fPIC
@@ -58,7 +58,7 @@ CFLAGS   :=  -g -O0 -Wall $(Preprocessors)
 ## User defined environment variables
 ##
 CodeLiteDir:=/usr/share/codelite
-Objects0=$(IntermediateDirectory)/main$(ObjectSuffix) $(IntermediateDirectory)/ant$(ObjectSuffix) $(IntermediateDirectory)/tup$(ObjectSuffix) $(IntermediateDirectory)/game$(ObjectSuffix) $(IntermediateDirectory)/mersenne_random$(ObjectSuffix) 
+Objects0=$(IntermediateDirectory)/main$(ObjectSuffix) $(IntermediateDirectory)/ant$(ObjectSuffix) $(IntermediateDirectory)/tup$(ObjectSuffix) $(IntermediateDirectory)/game$(ObjectSuffix) $(IntermediateDirectory)/mersenne_random$(ObjectSuffix) $(IntermediateDirectory)/colony$(ObjectSuffix) 
 
 
 
@@ -125,6 +125,14 @@ $(IntermediateDirectory)/mersenne_random$(DependSuffix): mersenne_random.cpp
 $(IntermediateDirectory)/mersenne_random$(PreprocessSuffix): mersenne_random.cpp
 	@$(CXX) $(CXXFLAGS) $(IncludePCH) $(IncludePath) $(PreprocessOnlySwitch) $(OutputSwitch) $(IntermediateDirectory)/mersenne_random$(PreprocessSuffix) "mersenne_random.cpp"
 
+$(IntermediateDirectory)/colony$(ObjectSuffix): colony.cpp $(IntermediateDirectory)/colony$(DependSuffix)
+	$(CXX) $(IncludePCH) $(SourceSwitch) "/home/dacuna/cppworkspace/proyectos/tupAnt/colony.cpp" $(CXXFLAGS) $(ObjectSwitch)$(IntermediateDirectory)/colony$(ObjectSuffix) $(IncludePath)
+$(IntermediateDirectory)/colony$(DependSuffix): colony.cpp
+	@$(CXX) $(CXXFLAGS) $(IncludePCH) $(IncludePath) -MG -MP -MT$(IntermediateDirectory)/colony$(ObjectSuffix) -MF$(IntermediateDirectory)/colony$(DependSuffix) -MM "colony.cpp"
+
+$(IntermediateDirectory)/colony$(PreprocessSuffix): colony.cpp
+	@$(CXX) $(CXXFLAGS) $(IncludePCH) $(IncludePath) $(PreprocessOnlySwitch) $(OutputSwitch) $(IntermediateDirectory)/colony$(PreprocessSuffix) "colony.cpp"
+
 
 -include $(IntermediateDirectory)/*$(DependSuffix)
 ##
@@ -146,6 +154,9 @@ clean:
 	$(RM) $(IntermediateDirectory)/mersenne_random$(ObjectSuffix)
 	$(RM) $(IntermediateDirectory)/mersenne_random$(DependSuffix)
 	$(RM) $(IntermediateDirectory)/mersenne_random$(PreprocessSuffix)
+	$(RM) $(IntermediateDirectory)/colony$(ObjectSuffix)
+	$(RM) $(IntermediateDirectory)/colony$(DependSuffix)
+	$(RM) $(IntermediateDirectory)/colony$(PreprocessSuffix)
 	$(RM) $(OutputFile)
 	$(RM) "../.build-debug/tupAnt"
 
