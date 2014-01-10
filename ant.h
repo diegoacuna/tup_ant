@@ -37,6 +37,7 @@ private:
 	int actual_slot_;                   /**<In classic ant it should be actual_city but in ant+tup we travel through slots */
 	double total_distance_;             /**<Total distance of the schedule */
 	vector<double> distance_by_umpire_; /**<Distance walked by each umpire */
+	double distance_actual_slot;        /**<Distance walked in the actual slot by each umpire */
 	multi_array<Game, 2> schedule_;   /**<Schedule for an entire tournament build by the ant */
 	ListDigraph restrictions_graph_;    /**<Graph representing restrictions in each round of the schedule */
 	ListDigraph::NodeMap<int> restrictions_graph_map_; /**<Map of restrictions_graph_ */
@@ -54,7 +55,7 @@ public:
 	 *
 	 * @param Tup reference to a problem instance to solve
 	 */
-	Ant(Tup& tup, int K);
+	Ant(Tup& tup, int K, MersenneRandom& rnd);
 
 	/**
 	 * Create and populates the graph of restrictions (filling the slots and the map).
@@ -143,6 +144,10 @@ public:
 	}
 	
 	void setAlphaBeta(double alpha, double beta);
+	
+	double get_distance_actual_slot();
+	
+	double get_total_distance();
 
 	/**
 	 * Class destructor.

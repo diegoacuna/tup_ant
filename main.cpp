@@ -26,8 +26,7 @@
 #include <lemon/list_graph.h>
 #include <tclap/CmdLine.h>
 #include "tup.h"
-#include "mersenne_random.h"
-#include "ant.h"
+#include "colony.h"
 
 using namespace lemon;
 using namespace std;
@@ -65,9 +64,11 @@ int main(int argc, char **argv)
 		double q = q_arg.getValue();
 		//End get command line parameters
 		
+		//create the problem instance
 		Tup problem {instance_arg.getValue(), home_arg.getValue(), venue_arg.getValue(), gamma_arg.getValue()};
-		MersenneRandom rnd {(unsigned int) seed_arg.getValue()};
-		Ant test {problem, k_arg.getValue()};
+		//create the colony
+		Colony colony{problem.number_of_umpires(), 100, problem, 0.1, q, p, 
+			seed_arg.getValue(), alpha, beta};
 		
 	} catch (TCLAP::ArgException &e) { 
 		LOG(FATAL) << "error: " << e.error() << " for arg " << e.argId();

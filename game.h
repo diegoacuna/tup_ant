@@ -26,7 +26,7 @@ class Game
 private:
 	int local_team_; /**<The team who plays in his venue */
 	int visit_team_; /**<The team who plays in a venue != his venue */
-	int slot_;       /**<Round in wich the game is going to get played */
+	int index_slot_; /**<Index in the round in wich the game is going to get played */
 public:
 	/**
 	 * Default class constructor.
@@ -40,6 +40,15 @@ public:
 	 * @param visit_team id of the visit team
 	 */
 	Game(int local_team, int visit_team);
+	
+	/**
+	 * Class constructor based on pair of teams.
+	 * 
+	 * @param local_team id of the local team
+	 * @param visit_team id of the visit team
+	 * @param index in the team schedule of actual game
+	 */
+	Game(int local_team, int visit_team, int index_slot);
 	
 	/**
 	 * Returns the id of the team who plays in his venue.
@@ -60,7 +69,7 @@ public:
 	 * 
 	 * @return slot of the game
 	 */
-	 int slot() const;
+	 int index_slot() const;
 	
 	/**
 	 * Class destructor

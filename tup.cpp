@@ -79,7 +79,7 @@ Tup::Tup(string filename, int home, int venue, int gamma) : home_restriction_(ho
 					int local = (lecture[i] > 0) ? i+1 : abs(lecture[i]);
 					int visit = (lecture[i] < 0) ? i+1 : lecture[i];
 					if(!readed[visit-1] && !readed[local-1]){					
-						Game game {local, visit};
+						Game game {local, visit, columnCounter};
 						teams_schedule_[columnCounter][rowCounter] = game;
 						readed[visit-1] = readed[local-1] = true;
 						columnCounter++;

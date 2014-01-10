@@ -13,8 +13,12 @@
 #include <algorithm>
 #include "ant.h"
 
-Ant::Ant(Tup& tup, int K) : actual_slot_(0), restrictions_graph_map_(restrictions_graph_), problem_instance_(tup),
- candidates_list_size_(K)
+Ant::Ant(Tup& tup, int K, MersenneRandom& rnd) : 
+actual_slot_(0), 
+restrictions_graph_map_(restrictions_graph_), 
+problem_instance_(tup),
+rnd_(rnd),
+candidates_list_size_(K)
 {
 	//initialize some attributes
 	prepare_restrictions_graph();
@@ -39,7 +43,7 @@ Ant::Ant(Tup& tup, int K) : actual_slot_(0), restrictions_graph_map_(restriction
 	}
 	actual_slot_++;
 	
-	move();
+	//move();
 }
 
 void Ant::prepare_restrictions_graph()
@@ -118,6 +122,7 @@ void Ant::update_distance(int umpire)
 	//distance is going to be added to umpire distance and to the entire global distance
 	distance_by_umpire_[umpire] += distance;
 	total_distance_ += distance;
+	distance_actual_slot += distance;
 }
 
 void Ant::move()
@@ -323,6 +328,7 @@ void Ant::move()
 	//so we select candidate 'wich_candidate', now fill the schedule and update
 	//the distance of each umpire. First get each game and assign, then update distance
 	int index_umpire = 0;
+	distance_actual_slot = 0.0; //also we calculate the distance of actual slot
 	for(int game : candidates[which_candidate]){
 		Game instance_game = potencial[game];
 		assign_match_to_umpire(instance_game, index_umpire);
@@ -796,3 +802,12 @@ void Ant::setAlphaBeta(double alpha, double beta)
 	this->beta_ = beta;
 }
 
+double Ant::get_distance_actual_slot()
+{
+	return this->distance_actual_slot;
+}
+
+double Ant::get_total_distance()
+{
+	return this->total_distance_;
+}
