@@ -86,7 +86,18 @@ void Ant::assign_match_to_umpire(Game game, int umpire)
 	ListDigraph::Node hres = restrictions_graph_.addNode();
 	restrictions_graph_map_[hres] = game.local_team();
 	int start = actual_slot_ + 1;
-	for(int i = start; i < start + problem_instance_.home_restriction() - 1; i++){
+	//maybe start + problem_instance_.home_restriction() (who represents future 
+	//slots where we need to apply the restriction) is greater than the maximum
+	//slot available. Ej: home_restriction()= 3 and we're in slot 8, then start
+	//is goint to be first 9, then 10 and in this case the algorithm is going
+	//to break because the maximun slot is 9 (0-9 for 10 slots). So, summarizing
+	//we need to check that i is going to be less than the maximum slot
+	int max_slot = start + problem_instance_.home_restriction() - 1;
+	//choose the min from start, maximum slot
+	max_slot = (max_slot > problem_instance_.number_of_slots()-1) 
+				? problem_instance_.number_of_slots()  
+				: max_slot;
+	for(int i = start; i < max_slot; i++){
 		//add arcs from the correponding slots and the corresponding umpire
 		ListDigraph::Node umpire_slot = get_umpire_node_from_slot(i, umpire, slots_r1_);
 		restrictions_graph_.addArc(umpire_slot, hres);

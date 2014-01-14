@@ -108,8 +108,9 @@ pheromone_persistence_(pheromone_persistence)
 				best_distance_ = ants_[ant]->get_total_distance();
 			}
 		}
-		//now we copy the schedule matrix
-		best_schedule_ = ants_[best_ant]->schedule();
+		//now we copy the schedule matrix if there's a good ant
+		if(best_ant != -1)
+			best_schedule_ = ants_[best_ant]->schedule();
 		
 		//destroy all ants
 		for(Ant* ant : ants_)
