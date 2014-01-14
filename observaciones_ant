@@ -1,0 +1,20 @@
+En la función move():
+
+- El vector potencial almacena copias de Game de TODOS los juegos que
+se pueden jugar en la ronda actual.
+
+OBS: el elemento i del vector potencial es el elemento i en la matriz
+de schedule
+
+- El vector possible_assignations contiene una referencia al INDEX en el
+vector potencial del juevo que un árbitro puede jugar, i.e. 
+possible_assignations[umpire][i] = j significa que el árbitro 'umpire'
+puede jugar el juego indicado por potencial[j] en la ronda actual.
+
+OBS: Para el criterio gamma se utiliza un porcentaje (por defecto 20%),
+este porcentaje indica cual es el mínimo porcentaje que se acepta que un
+árbitro tenga de número de asignaciones (con respecto al total de posibles
+asignaciones de la ronda, es decir, el número de juegos disponibles) para 
+considerarlo como un árbitro no bloqueado (un árbitro bloqueado es aquel 
+que tiene tan pocas asignaciones posibles que hay que "echarle una mano" 
+para que pueda seguir avanzando)

@@ -31,6 +31,17 @@
 using namespace lemon;
 using namespace std;
 
+void print_matrix(multi_array<Game, 2> matrix, int x, int y)
+{
+    int i, j;
+    for (i = 0; i < x; ++i)
+    {
+        for (j = 0; j < y; ++j)
+            printf("%d-%d ", matrix[i][j].local_team(),matrix[i][j].visit_team());
+        printf("\n");
+    }
+}
+
 int main(int argc, char **argv)
 {
 	FLAGS_logtostderr = 1;
@@ -42,7 +53,7 @@ int main(int argc, char **argv)
 		TCLAP::ValueArg<double> p_arg("p","persistence","Trail persistence of ant's pheromone",false,0.6,"double",cmd);
 		TCLAP::ValueArg<double> alpha_arg("a","alpha","Relative importance of trail",false,0.1,"double",cmd);
 		TCLAP::ValueArg<double> beta_arg("b","beta","Relative importance of visibility",false,0.1,"double",cmd);
-		TCLAP::ValueArg<double> q_arg("q","q","Quantity of trail laid by ants",false,0.1,"double",cmd);
+		TCLAP::ValueArg<double> q_arg("q","q","Quantity of trail laid by ants",false,1000,"double",cmd);
 		TCLAP::ValueArg<int> seed_arg("s","seed","Random seed for random number generation",false,100,"int",cmd);
 		//params for tup
 		TCLAP::ValueArg<string> instance_arg("i","instance","File with TSPLIB instance (only euclidean chords)",
@@ -50,10 +61,13 @@ int main(int argc, char **argv)
 		TCLAP::ValueArg<int> home_arg("o","home","Home restriction (n-d1)",false,0,"int",cmd);
 		TCLAP::ValueArg<int> venue_arg("e","venue","Any venue restriction (n/2 - d2)",false,0,"int",cmd);
 		//params for my proposal of algorithm
-		TCLAP::ValueArg<int> gamma_arg("g","gamma","Percentage of possible assignations for an umpire to consider him blocked",false,20,"int",cmd);
-		TCLAP::ValueArg<int> k_arg("k","candidates-list","Size of candidates list",false,5,"int",cmd);
+		TCLAP::ValueArg<int> gamma_arg("g","gamma","Percentage of possible assignations for an umpire to consider him blocked",
+					    false, 20, "int", cmd);
+		TCLAP::ValueArg<int> k_arg("k","candidates-list","Size of candidates list", 
+						false, 5, "int", cmd);
 		//general params
-		TCLAP::SwitchArg debug_arg("d","debug","Show debug information", cmd, false);
+		TCLAP::SwitchArg debug_arg("d","debug","Show debug information", cmd, 
+						false);
 		
 		// Parse the argv array.
 		cmd.parse(argc, argv);
@@ -65,7 +79,8 @@ int main(int argc, char **argv)
 		//End get command line parameters
 		
 		//create the problem instance
-		Tup problem {instance_arg.getValue(), home_arg.getValue(), venue_arg.getValue(), gamma_arg.getValue()};
+		Tup problem {instance_arg.getValue(), home_arg.getValue(), venue_arg.getValue(), 
+				     gamma_arg.getValue()};
 		//create the colony
 		Colony colony{problem.number_of_umpires(), 100, problem, 0.1, q, p, 
 			seed_arg.getValue(), alpha, beta};

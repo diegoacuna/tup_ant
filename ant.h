@@ -46,7 +46,7 @@ private:
 	Tup problem_instance_;              /**<Instance of TUP o solve */
 	MersenneRandom rnd_;				/**<Instance of a random generator */
 	int candidates_list_size_;          /**<Parameter K = size of the candidates list **/
-	array_3d colony_pheromone_;
+	array_3d* colony_pheromone_;
 	double alpha_;
 	double beta_;
 public:
@@ -139,7 +139,7 @@ public:
 
 	const multi_array<Game, 2>& schedule() const;
 
-	void setColonyPheromone(const array_3d& colony_pheromone_) {
+	void setColonyPheromone(array_3d* colony_pheromone_) {
 		this->colony_pheromone_ = colony_pheromone_;
 	}
 	

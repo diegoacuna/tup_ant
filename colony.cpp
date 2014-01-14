@@ -49,7 +49,7 @@ pheromone_persistence_(pheromone_persistence)
 			//TODO: set K parameter dinamically
 			Ant* new_ant = new Ant(problem_instance_, problem_instance_.number_of_umpires(), 
 						rnd);
-			new_ant->setColonyPheromone(pheromone_);
+			new_ant->setColonyPheromone(&pheromone_);
 			new_ant->setAlphaBeta(alpha, beta);
 			ants_.push_back(new_ant);
 		}

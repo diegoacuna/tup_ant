@@ -167,6 +167,8 @@ void Ant::move()
 	const pair<int, int>& b) -> bool { 
 		return a.second < b.second; 
 	});
+	//START THE GAMMA CRITERION
+	DLOG(INFO) << "STARTING THE GAMMA CRITERION FOR SLOT " << actual_slot_;
 	//now, traverse the number_assignations vector and watch which umpire has less possible assignations than permited
 	int umpires_gamma_criterion = -1;
 	for (std::vector<pair<int, int>>::size_type i = 0; i != number_assignations.size(); i++){
@@ -176,34 +178,52 @@ void Ant::move()
 			break;
 		}
 	}
-	//in umpires_gamma_criterion we have the total number of umpires who breaks the gamma criterion, to that list of umpires we apply the criterion
+	//in umpires_gamma_criterion we have the total number of umpires who breaks 
+	//the gamma criterion, to that list of umpires we apply the criterion
+	//TODO: bug, if umpires_gamma_criterion == -1 then all umpires breaks gamma
+	//criterion, at this time we're doing nothing with this, if umpires_gamma_criterion
+	//==-1 then we pass (and not apply gamma criterion to any umpires) which is
+	//clearly wrong, in that case we need to apply gamma criterion to all umpires
 	if(umpires_gamma_criterion != -1){
 		//we can create umpires_gamma_criterion candidates...
 		for(int i=0; i < umpires_gamma_criterion; i++){
 			vector<int> candidate(problem_instance_.number_of_umpires(), -1);
-			if(construct_match_from_gamma_criterion(potencial, number_assignations, possible_assignations, i, candidate)){
+			if(construct_match_from_gamma_criterion(potencial, number_assignations, 
+				possible_assignations, i, candidate)){
 				//we have a match, need to copy to the candidate list
 				candidates.push_back(candidate);
 			}
 		}
 	} 
+	DLOG(INFO) << "END THE GAMMA CRITERION FOR SLOT " << actual_slot_;
+	
 	//we need to complete the candidate list
-	//TODO: mean while K is going to be equal to the number of teams... probably its better to let it be a parameter
-	if(candidates.size() < problem_instance_.number_of_teams()){
-		//we are going to complete a list of size K = number of teams using the Pi criterion + perfect weigthed match
+	//TODO: mean while K is going to be equal to the number of teams... probably 
+	//its better to let it be a parameter
+	DLOG(INFO) << "STARTING THE MIXED CRITERION FOR SLOT " << actual_slot_;
+	if(candidates.size() < (size_t)problem_instance_.number_of_teams()){
+		//we are going to complete a list of size K = number of teams using the 
+		//Pi criterion + perfect weigthed match
 		rnd_.create_uniform_real_dis(0.0, 1.0);
-		for(auto i=candidates.size();i<problem_instance_.number_of_teams()+1;i++){
+		for(auto i=candidates.size();i<(size_t)problem_instance_.number_of_teams()+1;i++){
 			//CONSTRUCT A COMPLETE CANDIDATE, 50% WITH PI CRITERION AND 50% WITH PERFECT WEIGHTED MATCH
 			vector<Game> potencial_pi = potencial;
 			vector< pair<int, int> > traveled_distance_pi = traveled_distance;
 			vector<int> match(problem_instance_.number_of_umpires(), -1);
+			//First, construct the initial 50% of the candidate
 			for(int j=0;j<problem_instance_.number_of_umpires()/2;j++){
 				double Pi = rnd_.uniform_real_number();
 				if( Pi < 0.8 ){
-					//first, choose a good distance umpire (from the first half of traveled_distance vector
+					//first, choose a good distance umpire (from the first half 
+					//of traveled_distance vector
 					int choosed_umpire = -1;
-					int index_umpire = -1;
-					if(traveled_distance_pi.size() == 1) choosed_umpire = traveled_distance[0].first;
+					//in the worst case the index is going to be the first umpire
+					int index_umpire = 0; 
+					//the second comparision is needed because we need to know
+					//if the umpire is available to use it
+					if(traveled_distance_pi.size() == 1 && traveled_distance_pi
+						[index_umpire].first != -1) 
+						choosed_umpire = traveled_distance[0].first;
 					else {
 						int half = traveled_distance_pi.size() / 2; //doesn't matter where the half start...
 						rnd_.create_uniform_int_dis(0, half-1);
@@ -261,15 +281,17 @@ void Ant::move()
 						<< " in phase Pi criterion (phase to create until K candidates) with umpire " << choosed_umpire << ". The problem was: empty possible_assignations vector, no more potencial games to play."; 
 						continue;
 					}
-					//make the assignation
-					match[choosed_umpire] = possible_assignations[choosed_umpire][minimum_assignation];
+					//make the assignation, minimum assignations contains the 
+					//element in vector potencial_pi to use (its index)
+					match[choosed_umpire] = minimum_assignation;
 					Game dummy {-1,-1};
-					potencial_pi[possible_assignations[choosed_umpire][minimum_assignation]] = dummy;
+					potencial_pi[minimum_assignation] = dummy;
 					traveled_distance_pi[index_umpire].first = -1;
 				} //END PI CRITERION WITH PI > 0.8
 			}
-			//now we need to create the rest of the candidate with a perfect weighted match
-			//to know which umpires to bound we look the match vector (umpires with match -1 are not assigned)
+			//now we need to create the rest of the candidate with a perfect 
+			//weighted match to know which umpires to bound we look the match 
+			//vector (umpires with match -1 are not assigned)
 			//START PERFECT WEIGHTED MATCH FOR THE 50% REST
 			ListGraph bpMatch;
 			ListGraph::EdgeMap<double> weight(bpMatch); //weights of the graph
@@ -277,19 +299,25 @@ void Ant::move()
 			vector<ListGraph::Node> bpA; //first partition (umpires)
 			vector<ListGraph::Node> bpB; //second partition (games)
 			
-			for(vector<int>::size_type i=0;i<match.size();i++){
-				if(match[i]==-1){
-					bpA.push_back(bpMatch.addNode());
-					labels[bpA.back()] = i;
-				}
+			//add umpires
+			for(int i=0; i < problem_instance_.number_of_umpires(); i++){
+				bpA.push_back(bpMatch.addNode());
+				labels[bpA.back()] = i;
 			}
+			//add matches
 			for(std::vector<Game>::size_type i=0; i != potencial_pi.size(); i++){
 				bpB.push_back(bpMatch.addNode());
 				labels[bpB.back()] = i;
 			}	
 			//now, for each umpire check if we can join the umpire node with a node in bpB
 			for(int umpire=0; umpire < problem_instance_.number_of_umpires(); umpire++){
-				if(match[umpire]!=-1) continue;
+				if(match[umpire]!=-1){
+					//TODO: add the edge with the already instanciated match
+					int assignation = match[umpire];
+					ListGraph::Edge e = bpMatch.addEdge(bpA[umpire], bpB[assignation]);
+					weight[e] = 1;
+					continue;
+				}
 				//join possible assignations (games) with umpires
 				int previous_team = schedule_[umpire][actual_slot_-1].local_team() - 1;
 				for(int assignation : possible_assignations[umpire]){
@@ -302,10 +330,11 @@ void Ant::move()
 			} //END JOINING NODES
 			
 			//we have the full graph ready to search for a perfect matching...
-			MaxWeightedPerfectMatching<ListGraph, ListGraph::EdgeMap<double> > matching(bpMatch, weight);
+			MaxWeightedPerfectMatching<ListGraph, ListGraph::EdgeMap<double> > 
+				matching(bpMatch, weight);
 			if (!matching.run()){
-				DLOG(WARNING) << "No perfect matching found for 50% in construction of candidate list " 
-				<< " in slot " << actual_slot_;
+				DLOG(WARNING) << "No perfect matching found for 50% in " << 
+				  "construction of candidate list in slot " << actual_slot_;
 				continue;
 			}
 			DLOG(INFO) << "Perfect Matching found with weight " << matching.matchingWeight();
@@ -313,6 +342,7 @@ void Ant::move()
 			for(ListGraph::Node umpire : bpA){
 				ListGraph::Node game = matching.mate(umpire);
 				int which_umpire = labels[umpire];
+				if(match[which_umpire] != -1) continue; //pass...
 				//make the assignment
 				match[which_umpire] = labels[game];
 				Game dummy {-1,-1};
@@ -322,6 +352,7 @@ void Ant::move()
 			//END APPLY PERFECT WEIGHTED MATCH FOR THE 50% REST OF THE CANDIDATE LIST
 		}//END FOR PI CRITERION + PERFECT WEIGHTED MATCH TO CREATE UNTIL K CANDIDATES
 	}
+	DLOG(INFO) << "END THE MIXED CRITERION FOR SLOT " << actual_slot_;
 	
 	//now we need to select which candidate choose and fill the schedule
 	int which_candidate = calculatePheromoneForCandidateList(candidates);
@@ -349,10 +380,12 @@ bool Ant::construct_perfect_match(const vector<Game>& potencial, vector<int>& ma
 	vector<ListGraph::Node> bpA; //first partition (umpires)
 	vector<ListGraph::Node> bpB; //second partition (games)
 	
+	//all the umpires are going to participate in the match
 	for(int i=0; i < problem_instance_.number_of_umpires(); i++){
 		bpA.push_back(bpMatch.addNode());
 		labels[bpA.back()] = i;
 	}
+	//also all games will fall into the match
 	for(std::vector<Game>::size_type i=0; i != potencial.size(); i++){
 		bpB.push_back(bpMatch.addNode());
 		labels[bpB.back()] = i;
@@ -383,6 +416,9 @@ bool Ant::construct_perfect_match(const vector<Game>& potencial, vector<int>& ma
 		ListGraph::Node game = matching.mate(umpire);
 		match.push_back(labels[game]);
 	} 
+	//so the match vector contains in each row the value of wich game is going 
+	//to play the umpire with key i, i.e. match[i] = j means the umpire i is
+	//going to play the game j (in vector potencial)
 	
 	return true;
 }
@@ -672,8 +708,8 @@ int Ant::calculatePheromoneForCandidateList(vector<vector<int> >& candidateList)
 		for(int umpire = 0; umpire < problem_instance_.number_of_umpires(); umpire++){
 			int game = candidate[umpire];
 			//we have the i,j,k index => umpire, slot, game
-			totalPheromone += colony_pheromone_[umpire][actual_slot_][game];
-			pheromone_actual_candidate += colony_pheromone_[umpire][actual_slot_][game];
+			totalPheromone += (*colony_pheromone_)[umpire][actual_slot_][game];
+			pheromone_actual_candidate += (*colony_pheromone_)[umpire][actual_slot_][game];
 			visibility_actual_candidate += problem_instance_.
 				inverted_distance_matrix()
 				[schedule_[umpire][actual_slot_-1].local_team()-1]
@@ -741,7 +777,7 @@ int Ant::calculatePheromoneForGameList(int umpire, const vector<int>& potencial_
 	double total_visibility = 0.0;
 	for(auto candidate : potencial_games){
 		//the umpire is 'umpire', the slot is 'slot' the game is 'candidate', but
-		total_pheromone += colony_pheromone_[umpire][actual_slot_][candidate];
+		total_pheromone += (*colony_pheromone_)[umpire][actual_slot_][candidate];
 		total_visibility += problem_instance_.
 				inverted_distance_matrix()
 				[schedule_[umpire][actual_slot_-1].local_team()-1]
@@ -757,7 +793,7 @@ int Ant::calculatePheromoneForGameList(int umpire, const vector<int>& potencial_
 				[schedule_[umpire][actual_slot_-1].local_team()-1]
 				[problem_instance_.teams_schedule()[candidate][actual_slot_].local_team()-1];
 				
-		double calculation = (pow(colony_pheromone_[umpire][actual_slot_][candidate], alpha_) *
+		double calculation = (pow((*colony_pheromone_)[umpire][actual_slot_][candidate], alpha_) *
 		                     pow(visibility, beta_) ) /
 							 (pow(total_pheromone, alpha_) * 
 							 pow(total_visibility, beta_));
