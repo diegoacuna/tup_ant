@@ -13,13 +13,16 @@
 #include <algorithm>
 #include "ant.h"
 
-Ant::Ant(Tup& tup, int K, MersenneRandom& rnd) : 
+Ant::Ant(int id, Tup& tup, int K, int seed) : 
+id_(id),
 actual_slot_(0), 
 restrictions_graph_map_(restrictions_graph_), 
 problem_instance_(tup),
-rnd_(rnd),
+seed_(seed),
 candidates_list_size_(K)
 {
+	//create the random generator
+	rnd_.initialize_generator((unsigned int) (seed+id));
 	//initialize some attributes
 	prepare_restrictions_graph();
 	schedule_.resize(extents[tup.number_of_umpires()][tup.number_of_slots()]);
@@ -54,7 +57,7 @@ void Ant::prepare_restrictions_graph()
 		restrictions_graph_map_[slots_r1_.back()] = i;
 		slots_r2_.push_back(restrictions_graph_.addNode());
 		restrictions_graph_map_[slots_r2_.back()] = i;
-		DLOG(INFO) << "Assigning umpire nodes (= " << problem_instance_.number_of_umpires() << ") to slot node " << i;
+		//DLOG(INFO) << "Assigning umpire nodes (= " << problem_instance_.number_of_umpires() << ") to slot node " << i;
 		for(int j = 0; j < problem_instance_.number_of_umpires(); j++){
 			ListDigraph::Node ump = restrictions_graph_.addNode();
 			restrictions_graph_map_[ump] = j;
@@ -101,8 +104,8 @@ void Ant::assign_match_to_umpire(Game game, int umpire)
 		//add arcs from the correponding slots and the corresponding umpire
 		ListDigraph::Node umpire_slot = get_umpire_node_from_slot(i, umpire, slots_r1_);
 		restrictions_graph_.addArc(umpire_slot, hres);
-		DLOG(INFO) << "Adding home restriction for team " << game.local_team() << " in slot " << i << " to umpire " 
-			<< restrictions_graph_map_[umpire_slot];
+		//DLOG(INFO) << "Adding home restriction for team " << game.local_team() << " in slot " << i << " to umpire " 
+		//	<< restrictions_graph_map_[umpire_slot];
 	}
 	//process venue restriction
 	ListDigraph::Node vres = restrictions_graph_.addNode();
@@ -113,10 +116,10 @@ void Ant::assign_match_to_umpire(Game game, int umpire)
 		ListDigraph::Node umpire_slot = get_umpire_node_from_slot(i, umpire, slots_r2_);
 		restrictions_graph_.addArc(umpire_slot, vres);
 		restrictions_graph_.addArc(umpire_slot, hres);
-		DLOG(INFO) << "Adding venue restriction for team " << game.local_team() << " in slot " << i << " to umpire " 
-			<< restrictions_graph_map_[umpire_slot];;
-		DLOG(INFO) << "Adding venue restriction for team " << game.visit_team() << " in slot " << i << " to umpire " 
-			<< restrictions_graph_map_[umpire_slot];;
+		//DLOG(INFO) << "Adding venue restriction for team " << game.local_team() << " in slot " << i << " to umpire " 
+		//	<< restrictions_graph_map_[umpire_slot];;
+		//DLOG(INFO) << "Adding venue restriction for team " << game.visit_team() << " in slot " << i << " to umpire " 
+		//	<< restrictions_graph_map_[umpire_slot];;
 		add_r2 = true;
 	}
 	//erase not used nodes
@@ -366,6 +369,10 @@ void Ant::move()
 	DLOG(INFO) << "END THE MIXED CRITERION FOR SLOT " << actual_slot_;
 	
 	//now we need to select which candidate choose and fill the schedule
+	if(candidates.size() == 0){
+		this->id_ = -1;
+		return;
+	}
 	int which_candidate = calculatePheromoneForCandidateList(candidates);
 	//so we select candidate 'wich_candidate', now fill the schedule and update
 	//the distance of each umpire. First get each game and assign, then update distance
@@ -857,4 +864,9 @@ double Ant::get_distance_actual_slot()
 double Ant::get_total_distance()
 {
 	return this->total_distance_;
+}
+
+int Ant::id()
+{
+	return id_;
 }

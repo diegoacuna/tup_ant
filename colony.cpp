@@ -36,8 +36,6 @@ pheromone_persistence_(pheromone_persistence)
 								 [problem_instance.number_of_slots()]);
 		
 	fill(pheromone_.data(), pheromone_.data() + pheromone_.num_elements(), default_pheromone_);
-	//create the random generator
-	MersenneRandom rnd {(unsigned int) seed};
 	//walk through iterations
 	for(int cycle=0; cycle < number_of_iterations_; cycle++){
 		DLOG(INFO) << "STARTING ITERATION NUMBER = " << cycle;
@@ -47,8 +45,8 @@ pheromone_persistence_(pheromone_persistence)
 		ants_.clear();
 		for(int i=0; i < number_of_ants_; i++){
 			//TODO: set K parameter dinamically
-			Ant* new_ant = new Ant(problem_instance_, problem_instance_.number_of_umpires(), 
-						rnd);
+			Ant* new_ant = new Ant(i+cycle, problem_instance_, problem_instance_.number_of_umpires(), 
+						seed);
 			new_ant->setColonyPheromone(&pheromone_);
 			new_ant->setAlphaBeta(alpha, beta);
 			ants_.push_back(new_ant);
@@ -57,29 +55,33 @@ pheromone_persistence_(pheromone_persistence)
 		//the constructor of each ant it moves randomly in the first slot
 		for(int slot=1; slot < problem_instance.number_of_slots(); slot++){
 			DLOG(INFO) << "CONSTRUCTING SLOT NUMBER = " << slot;
-			for(Ant* ant : ants_)
-				ant->move();
+			for(Ant* ant : ants_){
+				if(ant->id() != -1)
+					ant->move();
+			}
 			//after the end of the slot we update the pheromone
 			//clever way to save some space
 			DLOG(INFO) << "STARTING UPDATE PHEROMONE PROCESS...";
 			vector<string> to_update;
 			vector<double> to_update_value;
 			for(Ant* ant : ants_){
-				for(int umpire=0; umpire < problem_instance.number_of_umpires(); umpire++){
-					Game game = ant->schedule()[umpire][slot];
-					//IDEA: create a key from umpire-slot-game and insert it into
-					//the vector to_update, if the key exists already in the vector
-					//the sum up the value and acumulate it into the pheromone for
-					//the key umpire-slot-game
-					string keys = to_string(umpire) + "-" + to_string(slot) + "-" +
-						to_string(game.index_slot());
-					auto it = find(to_update.begin(), to_update.end(), keys);
-					if (it == to_update.end()) {
-					  to_update.push_back(keys);
-					  to_update_value.push_back(Q / ant->get_distance_actual_slot()); 
-					} else {
-					  auto index = std::distance(to_update.begin(), it);
-					  to_update_value[index] += Q / ant->get_distance_actual_slot();
+				if(ant->id() != -1){
+					for(int umpire=0; umpire < problem_instance.number_of_umpires(); umpire++){
+						Game game = ant->schedule()[umpire][slot];
+						//IDEA: create a key from umpire-slot-game and insert it into
+						//the vector to_update, if the key exists already in the vector
+						//the sum up the value and acumulate it into the pheromone for
+						//the key umpire-slot-game
+						string keys = to_string(umpire) + "-" + to_string(slot) + "-" +
+							to_string(game.index_slot());
+						auto it = find(to_update.begin(), to_update.end(), keys);
+						if (it == to_update.end()) {
+						  to_update.push_back(keys);
+						  to_update_value.push_back(Q / ant->get_distance_actual_slot()); 
+						} else {
+						  auto index = std::distance(to_update.begin(), it);
+						  to_update_value[index] += Q / ant->get_distance_actual_slot();
+						}
 					}
 				}
 			}
@@ -103,7 +105,7 @@ pheromone_persistence_(pheromone_persistence)
 		//now that all ants have their schedules completed we find for the best
 		int best_ant = -1;
 		for(vector<Ant*>::size_type ant = 0; ant < ants_.size(); ant++){
-			if( ants_[ant]->get_total_distance() < best_distance_){
+			if(ants_[ant]->id()!=-1 && ants_[ant]->get_total_distance() < best_distance_){
 				best_ant = ant; //this is to avoid too many copies of schedule matrix
 				best_distance_ = ants_[ant]->get_total_distance();
 			}

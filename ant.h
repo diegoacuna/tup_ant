@@ -34,6 +34,7 @@ using namespace boost;
 class Ant
 {
 private:
+	int id_;
 	int actual_slot_;                   /**<In classic ant it should be actual_city but in ant+tup we travel through slots */
 	double total_distance_;             /**<Total distance of the schedule */
 	vector<double> distance_by_umpire_; /**<Distance walked by each umpire */
@@ -45,6 +46,7 @@ private:
 	vector<ListDigraph::Node> slots_r2_; /**<Nodes representing each slot in the schedule for venue restriction */
 	Tup problem_instance_;              /**<Instance of TUP o solve */
 	MersenneRandom rnd_;				/**<Instance of a random generator */
+	int seed_;
 	int candidates_list_size_;          /**<Parameter K = size of the candidates list **/
 	array_3d* colony_pheromone_;
 	double alpha_;
@@ -55,7 +57,7 @@ public:
 	 *
 	 * @param Tup reference to a problem instance to solve
 	 */
-	Ant(Tup& tup, int K, MersenneRandom& rnd);
+	Ant(int id, Tup& tup, int K, int seed);
 
 	/**
 	 * Create and populates the graph of restrictions (filling the slots and the map).
@@ -148,6 +150,8 @@ public:
 	double get_distance_actual_slot();
 	
 	double get_total_distance();
+	
+	int id();
 
 	/**
 	 * Class destructor.
