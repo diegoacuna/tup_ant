@@ -22,7 +22,7 @@ seed_(seed),
 candidates_list_size_(K)
 {
 	//create the random generator
-	rnd_.initialize_generator((unsigned int) (seed+id));
+	rnd_.initialize_generator((unsigned int) (seed*id));
 	//initialize some attributes
 	prepare_restrictions_graph();
 	schedule_.resize(extents[tup.number_of_umpires()][tup.number_of_slots()]);
@@ -75,8 +75,8 @@ void Ant::assign_match_to_umpire(Game game, int umpire)
 	Game assigned = game;
 	//assign the match to the umpire in the actual slot
 	schedule_[umpire][actual_slot_] = game;
-	DLOG(INFO) << "Assigned match (" << game.local_team() << ", " << game.visit_team() << 
-		") to umpire " << umpire << " in the slot " << actual_slot_;
+	//DLOG(INFO) << "Assigned match (" << game.local_team() << ", " << game.visit_team() << 
+	//	") to umpire " << umpire << " in the slot " << actual_slot_;
 	//now we need to take care of the restrictions graph, if we are in the last slot, then continue
 	if(actual_slot_ == problem_instance_.number_of_slots() -1)
 		return;
@@ -111,7 +111,12 @@ void Ant::assign_match_to_umpire(Game game, int umpire)
 	ListDigraph::Node vres = restrictions_graph_.addNode();
 	restrictions_graph_map_[vres] = game.visit_team();
 	bool add_r2 = false;
-	for(int i = start; i < start + problem_instance_.venue_restriction() - 1; i++){
+	max_slot = start + problem_instance_.venue_restriction() - 1;
+	//choose the min from start, maximum slot
+	max_slot = (max_slot > problem_instance_.number_of_slots()-1) 
+				? problem_instance_.number_of_slots()  
+				: max_slot;
+	for(int i = start; i < max_slot; i++){
 		//add arcs from the correponding slots
 		ListDigraph::Node umpire_slot = get_umpire_node_from_slot(i, umpire, slots_r2_);
 		restrictions_graph_.addArc(umpire_slot, vres);
@@ -220,6 +225,9 @@ void Ant::move()
 		//Pi criterion + perfect weigthed match
 		rnd_.create_uniform_real_dis(0.0, 1.0);
 		for(auto i=candidates.size();i<(size_t)problem_instance_.number_of_teams()+1;i++){
+			//sometimes we cannot create the candidate so we need a mechanism to know 
+			//when no to go on on trying to create this candidate
+			bool preserve_candidate = true; //a priori of course we can create a candidate
 			//CONSTRUCT A COMPLETE CANDIDATE, 50% WITH PI CRITERION AND 50% WITH PERFECT WEIGHTED MATCH
 			vector<Game> potencial_pi = potencial;
 			vector< pair<int, int> > traveled_distance_pi = traveled_distance;
@@ -244,7 +252,7 @@ void Ant::move()
 						index_umpire = rnd_.uniform_int_number();
 						while(traveled_distance_pi[index_umpire].first == -1){
 							index_umpire = rnd_.uniform_int_number();
-							DLOG(INFO) << "Looking for an index_umpire in traveled_distance vector...";
+							//DLOG(INFO) << "Looking for an index_umpire in traveled_distance vector...";
 						}
 						choosed_umpire = traveled_distance_pi[index_umpire].first;
 					}
@@ -254,13 +262,19 @@ void Ant::move()
 						if(potencial_pi[assignation].local_team() != -1)
 							actual_possible_games.push_back(assignation);
 					}
-					//calculate pheromones and determine which game we play
-					int which_game = calculatePheromoneForGameList(choosed_umpire, 
-						actual_possible_games, potencial_pi);
-					match[choosed_umpire] = actual_possible_games[which_game];
-					Game dummy {-1,-1};
-					potencial_pi[actual_possible_games[which_game]] = dummy;
-					traveled_distance_pi[index_umpire].first = -1;
+					if(actual_possible_games.size() == 0){
+						//this is a case where we can't go on constructing this
+						//candidate, so preserve_candidate should go false
+						preserve_candidate = false;
+					} else {
+						//calculate pheromones and determine which game we play
+						int which_game = calculatePheromoneForGameList(choosed_umpire, 
+							actual_possible_games, potencial_pi);
+						match[choosed_umpire] = actual_possible_games[which_game];
+						Game dummy {-1,-1};
+						potencial_pi[actual_possible_games[which_game]] = dummy;
+						traveled_distance_pi[index_umpire].first = -1;						
+					}
 				} else {
 					//apply minimum traveled distance criterion
 					//first, choose a bad distance umpire (from the second half of traveled_distance vector
@@ -275,7 +289,7 @@ void Ant::move()
 						index_umpire = rnd_.uniform_int_number();
 						while(traveled_distance_pi[index_umpire].first == -1){
 							index_umpire = rnd_.uniform_int_number();
-							DLOG(INFO) << "Looking for an index_umpire in traveled_distance vector...";
+							//DLOG(INFO) << "Looking for an index_umpire in traveled_distance vector...";
 						}
 						choosed_umpire = traveled_distance_pi[index_umpire].first;
 					}
@@ -303,6 +317,9 @@ void Ant::move()
 					traveled_distance_pi[index_umpire].first = -1;
 				} //END PI CRITERION WITH PI > 0.8
 			}
+			//check the preserve_candidate status
+			if(!preserve_candidate) continue; //we can't go on...
+			
 			//now we need to create the rest of the candidate with a perfect 
 			//weighted match to know which umpires to bound we look the match 
 			//vector (umpires with match -1 are not assigned)
@@ -362,7 +379,8 @@ void Ant::move()
 				Game dummy {-1,-1};
 				potencial_pi[labels[game]] = dummy;
 			}
-			candidates.push_back(match);
+			if(find(candidates.begin(), candidates.end(), match) == candidates.end())
+				candidates.push_back(match);
 			//END APPLY PERFECT WEIGHTED MATCH FOR THE 50% REST OF THE CANDIDATE LIST
 		}//END FOR PI CRITERION + PERFECT WEIGHTED MATCH TO CREATE UNTIL K CANDIDATES
 	}
@@ -373,7 +391,12 @@ void Ant::move()
 		this->id_ = -1;
 		return;
 	}
-	int which_candidate = calculatePheromoneForCandidateList(candidates);
+	rnd_.create_uniform_int_dis(0, candidates.size()-1);
+	int which_candidate = rnd_.uniform_int_number();
+	//int which_candidate = calculatePheromoneForCandidateList(candidates);
+	//DEBUG
+	if(which_candidate == 0)
+		DLOG(INFO) << "Choosed perfect match in slot " << actual_slot_;
 	//so we select candidate 'wich_candidate', now fill the schedule and update
 	//the distance of each umpire. First get each game and assign, then update distance
 	int index_umpire = 0;
@@ -500,92 +523,8 @@ bool Ant::construct_match_from_gamma_criterion(vector<Game> potencial, const vec
 	//int other_half = problem_instance_.number_of_umpires() - half; 
 	//we need to apply Pi criterion until half, with vector number_assignations we can know which umpires are missing
 	int index_missings = until_umpire + (half-total);
-	if(total < half){
-		//create vector of distances
-		int vec_size = index_missings-until_umpire;
-		vector< pair<int, int> > traveled_distance(vec_size, make_pair(0,0));
-		for(int i=until_umpire; i < index_missings; i++){
-			int umpire = number_assignations[i].first;
-			traveled_distance[i-until_umpire].first = umpire;
-			traveled_distance[i-until_umpire].second = distance_by_umpire_[umpire];
-		}
-		sort(traveled_distance.begin(), traveled_distance.end(), [](const pair<int, int>& a, 
-			const pair<int, int>& b) -> bool { 
-				return a.second < b.second; 
-		});
-		//now we apply the PI criterion
-		for(int i=until_umpire; i < index_missings; i++){
-			double Pi = rnd_.uniform_real_number();
-			if( Pi < 0.8 ){ //apply pheromone criterion
-				//first, choose a good distance umpire (from the first half of traveled_distance vector
-				int choosed_umpire = -1;
-				int index_umpire = -1;
-				if(traveled_distance.size() == 1) choosed_umpire = traveled_distance[0].first;
-				else {
-					int half = traveled_distance.size() / 2; //doesn't matter where the half start...
-					rnd_.create_uniform_int_dis(0, half-1);
-					index_umpire = rnd_.uniform_int_number();
-					while(traveled_distance[index_umpire].first == -1){
-						index_umpire = rnd_.uniform_int_number();
-						DLOG(INFO) << "Looking for an index_umpire in traveled_distance vector...";
-					}
-					choosed_umpire = traveled_distance[index_umpire].first;
-				}
-				//we need to create a list of actual possible game candidates for choosed umpire
-				vector<int> actual_possible_games;
-				for(int assignation : possible_assignations[choosed_umpire]){
-					if(potencial[assignation].local_team() != -1)
-						actual_possible_games.push_back(assignation);
-				}
-				//calculate pheromones and determine which game we play
-				int which_game = calculatePheromoneForGameList(choosed_umpire, 
-					actual_possible_games, potencial);
-				match[choosed_umpire] = actual_possible_games[which_game];
-				Game dummy {-1,-1};
-				potencial[actual_possible_games[which_game]] = dummy;
-				traveled_distance[index_umpire].first = -1;
-			} else {
-				//apply minimum traveled distance criterion
-				//first, choose a bad distance umpire (from the second half of traveled_distance vector
-				int choosed_umpire = -1;
-				int index_umpire = -1;
-				if(traveled_distance.size() == 1){
-					choosed_umpire = traveled_distance[0].first;
-					index_umpire = 0;
-				} else {
-					int half = traveled_distance.size() / 2; //doesn't matter where the half start...
-					rnd_.create_uniform_int_dis(half-1, traveled_distance.size()-1);
-					index_umpire = rnd_.uniform_int_number();
-					while(traveled_distance[index_umpire].first == -1){
-						index_umpire = rnd_.uniform_int_number();
-						DLOG(INFO) << "Looking for an index_umpire in traveled_distance vector...";
-					}
-					choosed_umpire = traveled_distance[index_umpire].first;
-				}
-				//We have an umpire...
-				//now select a match who minimices traveled distance
-				int minimum_assignation = -1;
-				double min_distance = distance_by_umpire_[choosed_umpire]*1000; //dummy
-				int previous_team = schedule_[choosed_umpire][actual_slot_-1].local_team() - 1;
-				for(int assignation : possible_assignations[choosed_umpire]){
-					if(potencial[assignation].local_team() != -1){
-						if(problem_instance_.distance_matrix()[previous_team][potencial[assignation].local_team() - 1] < min_distance)
-							minimum_assignation = assignation;
-					}
-				}//END FIND THE MINIMAL DISTANCE MATCH
-				if(minimum_assignation == -1){
-					DLOG(WARNING) << "Impossible to create a candidate for slot "<< actual_slot_ << " with gamma criterion"
-					<< " in phase Pi criterion with umpire " << choosed_umpire << ". The problem was: empty possible_assignations vector, no more potencial games to play."; 
-					return false;
-				}
-				//make the assignation
-				match[choosed_umpire] = possible_assignations[choosed_umpire][minimum_assignation];
-				Game dummy {-1,-1};
-				potencial[possible_assignations[choosed_umpire][minimum_assignation]] = dummy;
-				traveled_distance[index_umpire].first = -1;
-			} //END PI CRITERION WITH PI > 0.8
-		} //END COMPLETING 50% OF CANDIDATE LIST
-	} //END TOTAL < HALF CONDITION
+	
+	//TODO: THIS BLOCK HAS BEEN REMOVED
 	
 	//START PERFECT WEIGHTED MATCH FOR THE 50% REST
 	ListGraph bpMatch;
@@ -594,9 +533,9 @@ bool Ant::construct_match_from_gamma_criterion(vector<Game> potencial, const vec
 	vector<ListGraph::Node> bpA; //first partition (umpires)
 	vector<ListGraph::Node> bpB; //second partition (games)
 	
-	for(int i=index_missings; i < problem_instance_.number_of_umpires(); i++){
+	for(int i=0; i < problem_instance_.number_of_umpires(); i++){
 		bpA.push_back(bpMatch.addNode());
-		labels[bpA.back()] = number_assignations[i].first;
+		labels[bpA.back()] = i;
 	}
 	for(std::vector<Game>::size_type i=0; i != potencial.size(); i++){
 		bpB.push_back(bpMatch.addNode());
@@ -604,8 +543,13 @@ bool Ant::construct_match_from_gamma_criterion(vector<Game> potencial, const vec
 	}
 		
 	//now, for each umpire check if we can join the umpire node with a node in bpB
-	for(int i=index_missings; i < problem_instance_.number_of_umpires(); i++){
-		int umpire = number_assignations[i].first;
+	for(int umpire=0; umpire < problem_instance_.number_of_umpires(); umpire++){
+		if(match[umpire]!=-1){
+			int assignation = match[umpire];
+			ListGraph::Edge e = bpMatch.addEdge(bpA[umpire], bpB[assignation]);
+			weight[e] = 1;
+			continue;
+		}
 		//join possible assignations (games) with umpires
 		int previous_team = schedule_[umpire][actual_slot_-1].local_team() - 1;
 		for(int assignation : possible_assignations[umpire]){
@@ -651,8 +595,8 @@ bool Ant::check_restriction(Game game, int umpire)
 	for (ListDigraph::OutArcIt a(restrictions_graph_, umpire_node); a != INVALID; ++a){
 		//note that restrictions_graph_map_[restrictions_graph_.target(a)] represents a team
 		if(restrictions_graph_map_[restrictions_graph_.target(a)] == game.local_team()){
-			DLOG(WARNING) << "Can't assign game (" << game.local_team() << ", " << game.visit_team() <<
-				") to umpire " << umpire << " in slot " << actual_slot_ << ", violates home restriction!";
+			//DLOG(WARNING) << "Can't assign game (" << game.local_team() << ", " << game.visit_team() <<
+			//	") to umpire " << umpire << " in slot " << actual_slot_ << ", violates home restriction!";
 			return false;
 		}
 	}
@@ -663,8 +607,8 @@ bool Ant::check_restriction(Game game, int umpire)
 		//note that restrictions_graph_map_[restrictions_graph_.target(a)] represents a team
 		int restricted_team = restrictions_graph_map_[restrictions_graph_.target(a)];
 		if(restricted_team == game.local_team() || restricted_team == game.visit_team()){
-			DLOG(WARNING) << "Can't assign game (" << game.local_team() << ", " << game.visit_team() <<
-				") to umpire " << umpire << " in slot " << actual_slot_ << ", violates venue restriction!";
+			//DLOG(WARNING) << "Can't assign game (" << game.local_team() << ", " << game.visit_team() <<
+			//	") to umpire " << umpire << " in slot " << actual_slot_ << ", violates venue restriction!";
 			return false;
 		}
 	}
@@ -674,12 +618,12 @@ bool Ant::check_restriction(Game game, int umpire)
 
 ListDigraph::Node Ant::get_umpire_node_from_slot(int slot, int umpire, const vector<ListDigraph::Node>& slot_vector)
 {
-	DLOG(INFO) << "Looking for an umpire node with restrictions for umpire " << umpire << " on slot " << slot; 
+	//DLOG(INFO) << "Looking for an umpire node with restrictions for umpire " << umpire << " on slot " << slot; 
 	ListDigraph::Node slot_node = slot_vector.at(slot);
 	//now we need to find the umpire node
 	for (ListDigraph::OutArcIt a(restrictions_graph_, slot_node); a != INVALID; ++a){
 		if(restrictions_graph_map_[restrictions_graph_.target(a)] == umpire){
-			DLOG(INFO) << "Founded umpire node " << umpire << " on slot " << slot << "!";
+			//DLOG(INFO) << "Founded umpire node " << umpire << " on slot " << slot << "!";
 			return restrictions_graph_.target(a);
 		}
 	}

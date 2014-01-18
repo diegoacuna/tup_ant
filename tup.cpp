@@ -24,7 +24,8 @@ Tup::Tup(string filename, int home, int venue, int gamma) : home_restriction_(ho
 		if(line[0]  == 'n') {
 			//reading the number of teams
 			try {
-				number_of_teams_ = stoi(line.substr(7,1), nullptr);
+				string to_parse_nteams = line.substr(7,string::npos);
+				number_of_teams_ = stoi(to_parse_nteams, nullptr);
 				number_of_umpires_ = number_of_teams_ / 2;
 				number_of_slots_ = 2*number_of_teams_ - 2;
 				//resize matrix of distances and schedule

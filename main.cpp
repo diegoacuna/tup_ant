@@ -42,11 +42,20 @@ void print_matrix(multi_array<Game, 2> matrix, int x, int y)
     }
 }
 
-int main(int argc, char **argv)
+void print_table(multi_array<double, 3> matrix, int x, int y, int z)
 {
-	FLAGS_logtostderr = 1;
-	google::InitGoogleLogging(argv[0]);
-	
+    int i, j, k;
+	printf("| ARBITRO | RONDA | JUEGO | FEROMONA |\n");
+    for (i = 0; i < x; ++i)
+    {
+        for (j = 0; j < y; ++j)
+			for(k=0; k < z; k++)
+				printf("| %7d | %5d | %5d | %8f |\n", i, j, k, matrix[i][j][k]);
+    }
+}
+
+int main(int argc, char **argv)
+{	
 	try {
 		TCLAP::CmdLine cmd("Ant System TSP: Traveling salesman problem solved by AS", ' ', "1.1");
 		//params for ant algorithm
@@ -55,6 +64,7 @@ int main(int argc, char **argv)
 		TCLAP::ValueArg<double> beta_arg("b","beta","Relative importance of visibility",false,0.1,"double",cmd);
 		TCLAP::ValueArg<double> q_arg("q","q","Quantity of trail laid by ants",false,1000,"double",cmd);
 		TCLAP::ValueArg<int> seed_arg("s","seed","Random seed for random number generation",false,100,"int",cmd);
+		TCLAP::ValueArg<int> ants_arg("n","ants","Number of Ants to use",false,10,"int",cmd);
 		//params for tup
 		TCLAP::ValueArg<string> instance_arg("i","instance","File with TSPLIB instance (only euclidean chords)",
 			true,"","string",cmd);
@@ -65,10 +75,11 @@ int main(int argc, char **argv)
 					    false, 20, "int", cmd);
 		TCLAP::ValueArg<int> k_arg("k","candidates-list","Size of candidates list", 
 						false, 5, "int", cmd);
+		TCLAP::ValueArg<int> c_arg("c","cycles","Number of cycles to run", 
+						false, 100, "int", cmd);
 		//general params
 		TCLAP::SwitchArg debug_arg("d","debug","Show debug information", cmd, 
 						false);
-		
 		// Parse the argv array.
 		cmd.parse(argc, argv);
 		bool debug = debug_arg.getValue();
@@ -78,11 +89,17 @@ int main(int argc, char **argv)
 		double q = q_arg.getValue();
 		//End get command line parameters
 		
+		FLAGS_logtostderr = 1;
+		if(!debug) {
+			FLAGS_minloglevel = 2;
+		}
+		google::InitGoogleLogging(argv[0]);
+		
 		//create the problem instance
 		Tup problem {instance_arg.getValue(), home_arg.getValue(), venue_arg.getValue(), 
 				     gamma_arg.getValue()};
 		//create the colony
-		Colony colony{problem.number_of_umpires(), 100, problem, 0.1, q, p, 
+		Colony colony{ants_arg.getValue(), c_arg.getValue(), problem, 0.1, q, p, 
 			seed_arg.getValue(), alpha, beta};
 		
 	} catch (TCLAP::ArgException &e) { 

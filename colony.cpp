@@ -45,7 +45,7 @@ pheromone_persistence_(pheromone_persistence)
 		ants_.clear();
 		for(int i=0; i < number_of_ants_; i++){
 			//TODO: set K parameter dinamically
-			Ant* new_ant = new Ant(i+cycle, problem_instance_, problem_instance_.number_of_umpires(), 
+			Ant* new_ant = new Ant(i+cycle+1, problem_instance_, problem_instance_.number_of_umpires(), 
 						seed);
 			new_ant->setColonyPheromone(&pheromone_);
 			new_ant->setAlphaBeta(alpha, beta);
@@ -104,7 +104,9 @@ pheromone_persistence_(pheromone_persistence)
 		
 		//now that all ants have their schedules completed we find for the best
 		int best_ant = -1;
+		DLOG(INFO) << "TOTAL DISTANCE BY ANTS IN CYCLE " << cycle;
 		for(vector<Ant*>::size_type ant = 0; ant < ants_.size(); ant++){
+			if(ants_[ant]->id()!=-1) DLOG(INFO) << ants_[ant]->get_total_distance();
 			if(ants_[ant]->id()!=-1 && ants_[ant]->get_total_distance() < best_distance_){
 				best_ant = ant; //this is to avoid too many copies of schedule matrix
 				best_distance_ = ants_[ant]->get_total_distance();

@@ -10,6 +10,9 @@
 
 Game::Game()
 {
+	local_team_ = -1;
+	visit_team_ = -1;
+	index_slot_ = -1;
 }
 
 Game::Game(int local_team, int visit_team) : 
